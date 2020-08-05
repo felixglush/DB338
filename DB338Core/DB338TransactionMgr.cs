@@ -10,6 +10,8 @@ namespace DB338Core
 {
     class DB338TransactionMgr
     {
+        //the List of Internal Schema Tables holds the actual data for DB338
+        //it is implemented using Lists, which could be replaced.
         List<IntSchTable> tables;
 
         public DB338TransactionMgr()

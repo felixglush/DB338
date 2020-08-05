@@ -1,7 +1,9 @@
 ﻿using System;
+using System.CodeDom.Compiler;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Windows.Forms.VisualStyles;
 
 namespace DB338Core
 {
@@ -17,7 +19,7 @@ namespace DB338Core
             transactionMgr = new DB338TransactionMgr();
         }
 
-        public string[,] SubmitQuery(string query)
+        public QueryResult SubmitQuery(string query)
         {
             TextReader scriptText = new StringReader(query);
 
@@ -26,10 +28,12 @@ namespace DB338Core
             //sqlParser.Parse will always return the tokens of the query if accepted
             //the TYPE of the query is passed into the transaction manager, so you know what to check
 
-            string queryType = tokens[tokens.Count - 3];
-            string done = tokens[tokens.Count - 2];
-            string accepted = tokens[tokens.Count - 1];
+            string queryType = tokens[tokens.Count - 4];
+            string done = tokens[tokens.Count - 3];
+            string accepted = tokens[tokens.Count - 2];
+            string error = tokens[tokens.Count - 1];
 
+            tokens.RemoveAt(tokens.Count - 1);
             tokens.RemoveAt(tokens.Count - 1);
             tokens.RemoveAt(tokens.Count - 1);
             tokens.RemoveAt(tokens.Count - 1);
@@ -37,11 +41,16 @@ namespace DB338Core
             if (accepted == "True")
             {
                 string[,] results = transactionMgr.Process(tokens, queryType);
-                return results;
+                QueryResult queryResult = new QueryResult(queryType, done, accepted, error);
+                queryResult.Results = results;
+                return queryResult;
             }
             else
             {
-                return null;
+                //error
+                QueryResult queryResult = new QueryResult(queryType, done, accepted, error);
+                queryResult.Results = null;
+                return queryResult;
             }
         }
 

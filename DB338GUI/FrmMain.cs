@@ -25,7 +25,16 @@ namespace DB338GUI
         {
             for (int i = 0; i < TxtQuery.Lines.Length; ++i)
             {
-                Output(db.SubmitQuery(TxtQuery.Lines[i]));
+                QueryResult queryResult = db.SubmitQuery(TxtQuery.Lines[i]);
+                string[,] queryResults = queryResult.Results;
+                if (queryResult.Error != "none")
+                {
+                    //null means error
+                    MessageBox.Show("Input SQL contained a " + queryResult.Error + " error.");
+                }
+                else {
+                    Output(queryResults);
+                }
             }
         }
 

@@ -319,6 +319,8 @@ namespace DB338Core
             bool accepted = false;          //Was the parse successful?
             string statementType;
             statementType = "unknown";
+            string errorType;
+            errorType = "none";
 
             parser.Open(reader);
             parser.TrimReductions = false;  //Please read about this feature before enabling  
@@ -332,11 +334,13 @@ namespace DB338Core
                 {
                     case GOLD.ParseMessage.LexicalError:
                         //Cannot recognize token
+                        errorType = "lexical";
                         done = true;
                         break;
 
                     case GOLD.ParseMessage.SyntaxError:
                         //Expecting a different token
+                        errorType = "syntax";
                         done = true;
                         break;
 
@@ -360,16 +364,19 @@ namespace DB338Core
 
                     case GOLD.ParseMessage.InternalError:
                         //INTERNAL ERROR! Something is horribly wrong.
+                        errorType = "internal";
                         done = true;
                         break;
 
                     case GOLD.ParseMessage.NotLoadedError:
-                        //This error occurs if the CGT was not loaded.                   
+                        //This error occurs if the CGT was not loaded.
+                        errorType = "cgt";
                         done = true;
                         break;
 
                     case GOLD.ParseMessage.GroupError:
                         //GROUP ERROR! Unexpected end of file
+                        errorType = "eof";
                         done = true;
                         break;
                 }
@@ -383,6 +390,7 @@ namespace DB338Core
             tokens.Add(statementType);
             tokens.Add(done.ToString());
             tokens.Add(accepted.ToString());
+            tokens.Add(errorType);
 
             return tokens;
         }
