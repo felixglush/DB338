@@ -10,11 +10,13 @@ namespace DB338Core
         private string name;
 
         private List<IntSchColumn> columns;
+        private List<string> columnNames;
 
         public IntSchTable(string initname)
         {
             name = initname;
             columns = new List<IntSchColumn>();
+            columnNames = new List<string>();
         }
 
         public string Name { get => name; set => name = value; }
@@ -50,6 +52,8 @@ namespace DB338Core
         {
             for (int i = 0; i < cols.Count; ++i)
             {
+                columnNames.Add(columns[i].Name);
+
                 for (int j = 0; j < columns.Count; ++j)
                 {
                     if (columns[j].Name == cols[i])
@@ -73,5 +77,27 @@ namespace DB338Core
             columns.Add(new IntSchColumn(name, type));
             return true;
         }
+
+        public string[,] Update(List<string> updateCols, List<string> values, string conditionCol, string conditionValue, string condition)
+        {
+            // return the string[,] of the table affected
+            return Select(getColumnNames());
+        }
+        public string[,] drop()
+        {
+            
+        }
+
+        private List<string> getColumnNames()
+        {
+            List<string> names = new List<string>();
+            foreach (IntSchColumn col in columns)
+            {
+                names.Add(col.Name);
+            }
+            return names;
+        }
+
+        
     }
 }
