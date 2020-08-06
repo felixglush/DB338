@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Windows.Forms;
 
 namespace DB338Core
 {
@@ -8,35 +9,55 @@ namespace DB338Core
     {
 
         private string name;
+        int numRows;
+        private IDictionary<string, IntSchColumn> columns;
 
-        private List<IntSchColumn> columns;
-        private List<string> columnNames;
+
+        private int LOG = 1; // maybe make a logger class?
 
         public IntSchTable(string initname)
         {
             name = initname;
-            columns = new List<IntSchColumn>();
-            columnNames = new List<string>();
+            numRows = 0;
+            columns = new Dictionary<string, IntSchColumn>();
         }
 
         public string Name { get => name; set => name = value; }
-
-
-        public string[,] Select(List<string> cols)
+        
+        private void printList(List<string> list, string type)
         {
-            string[,] results = new string[columns[0].items.Count, cols.Count];
+            if (LOG == 1) {
+                System.Console.WriteLine(type);
+                list.ForEach(System.Console.WriteLine);
+            }
+        }
 
+        public string[,] Select(List<string> cols, List<string> whereClause)
+        {
+            if (whereClause != null && whereClause.Count > 0)
+            {
+                string conditionOn = "";
+                string conditionOperator = "";
+                string condition = "";
+
+            }
+
+            printList(cols, "SELECT COLUMNS");
+            printList(whereClause, "WHERE CLAUSE");
+
+            // numRows x number of selected cols
+            string[,] results = new string[numRows, cols.Count];
+
+            // go across the selected columns
             for (int i = 0; i < cols.Count; ++i)
             {
-                for (int j = 0; j < columns.Count; ++j)
+                string name = cols[i];
+                IntSchColumn theCol = columns[name];
+                    
+                // go through items in this column and append to the results
+                for (int row = 0; row < numRows; ++row)
                 {
-                    if (cols[i] == columns[j].Name)
-                    {
-                        for (int z = 0; z < columns[0].items.Count; ++z)
-                        {
-                            results[z, i] = columns[j].items[z];
-                        }
-                    }
+                    results[row, i] = theCol.Get(row);
                 }
             }
 
@@ -48,60 +69,54 @@ namespace DB338Core
             throw new NotImplementedException();
         }
 
-        public void Insert(List<string> cols, List<string> vals)
+        // insert a record into the table
+        public void Insert(List<string> columnNames, List<string> columnValues)
         {
-            for (int i = 0; i < cols.Count; ++i)
-            {
-                columnNames.Add(columns[i].Name);
+            printList(columnNames, "insert column names");
+            printList(columnValues, "insert column values");
 
-                for (int j = 0; j < columns.Count; ++j)
+            if (columnNames.Count == columnValues.Count)
+            {
+                for (int i = 0; i < columnNames.Count; ++i)
                 {
-                    if (columns[j].Name == cols[i])
-                    {
-                        columns[j].items.Add(vals[i]);
-                    }
+                    columns[columnNames[i]].items.Add(columnValues[i]);
+                    numRows += 1;
                 }
             }
         }
 
         public bool AddColumn(string name, string type)
         {
-            foreach (IntSchColumn col in columns)
-            {
-                if (col.Name == name)
-                {
-                    return false;
-                }
-            }
+            if (columns.ContainsKey(name)) return false;
 
-            columns.Add(new IntSchColumn(name, type));
+            if (LOG == 1) System.Console.WriteLine("ADD COLUMN " + name + " " + type);
+
+            columns.Add(name, new IntSchColumn(name, type));
+
             return true;
         }
+
+        // Dictionary maps column names to types
+        internal bool addColumns(IDictionary<string, string> columns)
+        {
+            bool result = false;
+            foreach (KeyValuePair<string, string> entry in columns)
+            {
+                result = AddColumn(entry.Key, entry.Value);
+                if (!result) return false;
+            }
+
+            return result;
+        }
+
+        public bool dropColumn(string columnName) => columns.Remove(columnName);
 
         public string[,] Update(List<string> updateCols, List<string> values, string conditionCol, string conditionValue, string condition)
         {
             // return the string[,] of the table affected
-            return Select(getColumnNames());
-        }
-        
-        private List<string> getColumnNames()
-        {
-            List<string> names = new List<string>();
-            foreach (IntSchColumn col in columns)
-            {
-                names.Add(col.Name);
-            }
-            return names;
+            return Select((List<string>) columns.Keys, null);
         }
 
-        internal string[,] addColumns(IDictionary<string, string> columns)
-        {
-            throw new NotImplementedException();
-        }
-
-        internal string[,] dropColumn(string columnName)
-        {
-            throw new NotImplementedException();
-        }
+       
     }
 }

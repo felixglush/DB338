@@ -5,6 +5,7 @@ using System.Linq;
 using System.Security.AccessControl;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace DB338Core
 {
@@ -71,6 +72,13 @@ namespace DB338Core
             int indexHaving = tokens.IndexOf("having");
             int indexOrderby = tokens.IndexOf("order");
 
+            if (indexGroupby == -1 && indexHaving != -1)
+            {
+                // return error, must have group by
+                return new string[1, 1] { { "Error: Having clause must have group by." } };
+            }
+
+
             List<string> colsToSelect = new List<string>();
             int tableOffset = 0;
 
@@ -87,49 +95,53 @@ namespace DB338Core
                 }
                 else
                 {
-                    colsToSelect.Add(tokens[i]);
+                    colsToSelect.Add(tokens[i]); // aggregate function detection
                 }
             }
 
+            List<string> whereClause = new List<string>();
 
             if (indexWhere != -1)
             {
                 // process where clause
-                List<string> clause = new List<string>();
                 int i = indexWhere + 1;
                 while (i < tokens.Count)
                 {
-                    clause.Add(tokens[i]);
+                    whereClause.Add(tokens[i]);
                     if (i == indexGroupby || i == indexOrderby)
                     {
                         break;
                     }
                 }
 
-                
-
             }
 
             string tableToSelectFrom = tokens[tableOffset];
-
-            tables[tableToSelectFrom].Select(colsToSelect);
+            selectionResult = tables[tableToSelectFrom].Select(colsToSelect, whereClause); // Select will check if where is empty or not
 
             if (indexGroupby != -1)
             {
-                // process group by clause
-            }
+                List<string> havingClause = new List<string>();
 
-            if (indexHaving != -1)
-            {
-                // process having clause
+                // process group by clause
+                if (indexHaving != -1)
+                {
+                    // process having clause 
+
+                }
+
+                string colToGroupOn = tokens[indexGroupby + 1];
+                groupResult = tables[tableToSelectFrom].GroupBy(selectionResult, colToGroupOn, havingClause); // GroupBy will check if having is empty or not
             }
 
             if (indexOrderby != -1)
             {
                 // process order by clause
+                string colToOrderOn = tokens[indexOrderby + 1];
+                tables[tableToSelectFrom].OrderBy(selectionResult, colToOrderOn);
             }
 
-            
+            return selectionResult;
         }
 
         private bool ProcessInsertStatement(List<string> tokens)
@@ -330,6 +342,7 @@ namespace DB338Core
             string tableName = tokens[2];
             string action = tokens[3];
             string what = tokens[4];
+            bool result = false;
 
             if (action == "add")
             {
@@ -364,7 +377,15 @@ namespace DB338Core
                         }
                     }
 
-                    return tables[tableName].addColumns(columns);
+                    bool success = tables[tableName].addColumns(columns);
+                    if (success)
+                    {
+                        return new string[,] { { "Add columns successful" } };
+                    }
+                    else
+                    {
+                        return new string[,] { { "Error: add columns unsuccessful" } };
+                    }
                 }
                 else if (what == "constraint")
                 {
@@ -378,13 +399,21 @@ namespace DB338Core
                 if (what == "column")
                 {
                     string columnName = tokens[5];
-                    return tables[tableName].dropColumn(columnName);
+                    bool success = tables[tableName].dropColumn(columnName);
+                    if (success)
+                    {
+                        return new string[,] { { "Drop successful" } };
+                    } else
+                    {
+                        return new string[,] { { "Error: drop unsuccessful" } };
+                    }
                 } else if (what == "constraint")
                 {
                     throw new NotImplementedException();
                 }
             }
-            return null;
+
+            return new string[,] { { "Error" } }; ;
         }
     }
 }
