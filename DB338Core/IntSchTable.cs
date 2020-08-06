@@ -83,11 +83,7 @@ namespace DB338Core
             // return the string[,] of the table affected
             return Select(getColumnNames());
         }
-        public string[,] drop()
-        {
-            
-        }
-
+        
         private List<string> getColumnNames()
         {
             List<string> names = new List<string>();
@@ -98,6 +94,14 @@ namespace DB338Core
             return names;
         }
 
-        
+        internal string[,] addColumns(IDictionary<string, string> columns)
+        {
+            throw new NotImplementedException();
+        }
+
+        internal string[,] dropColumn(string columnName)
+        {
+            throw new NotImplementedException();
+        }
     }
 }

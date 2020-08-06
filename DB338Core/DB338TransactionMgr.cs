@@ -12,11 +12,12 @@ namespace DB338Core
     {
         //the List of Internal Schema Tables holds the actual data for DB338
         //it is implemented using Lists, which could be replaced.
-        List<IntSchTable> tables;
+        // replaced with a dictionary of table name to IntSchTable
+        IDictionary<string, IntSchTable> tables;
 
         public DB338TransactionMgr()
         {
-            tables = new List<IntSchTable>();
+            tables = new Dictionary<string, IntSchTable>();
         }
 
         public string[,] Process(List<string> tokens, string type)
@@ -65,6 +66,11 @@ namespace DB338Core
         {
             // <Select Stm> ::= SELECT <Columns> <From Clause> <Where Clause> <Group Clause> <Having Clause> <Order Clause>
 
+            int indexWhere = tokens.IndexOf("where");
+            int indexGroupby = tokens.IndexOf("group");
+            int indexHaving = tokens.IndexOf("having");
+            int indexOrderby = tokens.IndexOf("order");
+
             List<string> colsToSelect = new List<string>();
             int tableOffset = 0;
 
@@ -85,80 +91,99 @@ namespace DB338Core
                 }
             }
 
-            string tableToSelectFrom = tokens[tableOffset];
 
-            for (int i = 0; i < tables.Count; ++i)
+            if (indexWhere != -1)
             {
-                if (tables[i].Name == tableToSelectFrom)
+                // process where clause
+                List<string> clause = new List<string>();
+                int i = indexWhere + 1;
+                while (i < tokens.Count)
                 {
-                    return tables[i].Select(colsToSelect);
+                    clause.Add(tokens[i]);
+                    if (i == indexGroupby || i == indexOrderby)
+                    {
+                        break;
+                    }
                 }
+
+                
+
             }
 
-            return null;
+            string tableToSelectFrom = tokens[tableOffset];
+
+            tables[tableToSelectFrom].Select(colsToSelect);
+
+            if (indexGroupby != -1)
+            {
+                // process group by clause
+            }
+
+            if (indexHaving != -1)
+            {
+                // process having clause
+            }
+
+            if (indexOrderby != -1)
+            {
+                // process order by clause
+            }
+
+            
         }
 
         private bool ProcessInsertStatement(List<string> tokens)
         {
             // <Insert Stm> ::= INSERT INTO Id '(' <ID List> ')' VALUES '(' <Expr List> ')'
 
-            string insertTableName = tokens[2];
+            List<string> columnNames = new List<string>();
+            List<string> columnValues = new List<string>();
 
-            foreach (IntSchTable tbl in tables)
+            int offset = 0;
+
+            for (int i = 4; i < tokens.Count; ++i)
             {
-                if (tbl.Name == insertTableName)
+                if (tokens[i] == ")")
                 {
-                    List<string> columnNames = new List<string>();
-                    List<string> columnValues = new List<string>();
-
-                    int offset = 0;
-
-                    for (int i = 4; i < tokens.Count; ++i)
-                    {
-                        if (tokens[i] == ")")
-                        {
-                            offset = i + 3;
-                            break;
-                        }
-                        else if (tokens[i] == ",")
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            columnNames.Add(tokens[i]);
-                        }
-                    }
-
-                    for (int i = offset; i < tokens.Count; ++i)
-                    {
-                        if (tokens[i] == ")")
-                        {
-                            break;
-                        }
-                        else if (tokens[i] == ",")
-                        {
-                            continue;
-                        }
-                        else
-                        {
-                            columnValues.Add(tokens[i]);
-                        }
-                    }
-
-                    if (columnNames.Count != columnValues.Count)
-                    {
-                        return false;
-                    }
-                    else
-                    {
-                        tbl.Insert(columnNames, columnValues);
-                        return true;
-                    }
+                    offset = i + 3;
+                    break;
+                }
+                else if (tokens[i] == ",")
+                {
+                    continue;
+                }
+                else
+                {
+                    columnNames.Add(tokens[i]);
                 }
             }
 
-            return false;
+            for (int i = offset; i < tokens.Count; ++i)
+            {
+                if (tokens[i] == ")")
+                {
+                    break;
+                }
+                else if (tokens[i] == ",")
+                {
+                    continue;
+                }
+                else
+                {
+                    columnValues.Add(tokens[i]);
+                }
+            }
+
+            if (columnNames.Count != columnValues.Count)
+            {
+                return false;
+            }
+            else
+            {
+                string insertTableName = tokens[2];
+                tables[insertTableName].Insert(columnNames, columnValues);
+                return true;
+            }
         }
 
         private bool ProcessCreateTableStatement(List<string> tokens)
@@ -168,14 +193,13 @@ namespace DB338Core
 
             string newTableName = tokens[2];
 
-            foreach (IntSchTable tbl in tables)
+            
+            if (tables.ContainsKey(newTableName))
             {
-                if (tbl.Name == newTableName)
-                {
-                    //cannot create a new table with the same name
-                    return false;
-                }
+                //cannot create a new table with the same name
+                return false;
             }
+
 
             List<string> columnNames = new List<string>();
             List<string> columnTypes = new List<string>();
@@ -213,7 +237,7 @@ namespace DB338Core
                 newTable.AddColumn(columnNames[i], columnTypes[i]);
             }
 
-            tables.Add(newTable);
+            tables.Add(newTableName, newTable);
 
             return true;
         }
@@ -256,15 +280,7 @@ namespace DB338Core
                 }
             }
 
-            for (int i = 0; i < tables.Count; ++i)
-            {
-                if (tables[i].Name == tableName)
-                {
-                    return tables[i].Update(cols, newVals, conditionCol, conditionVal, condition);
-                }
-            }
-
-            return null;
+            return tables[tableName].Update(cols, newVals, conditionCol, conditionVal, condition);
         }
 
         private string[,] ProcessDropStatement(List<string> tokens)
@@ -273,15 +289,14 @@ namespace DB338Core
             string[,] result = new string[1, 1];
             string tableName = tokens[2];
             
-            result[0, 0] = "Fail: No such table found.";
+            bool success = tables.Remove(tableName);
 
-            for (int i = 0; i < tables.Count; ++i)
+            if (success)
             {
-                if (tables[i].Name == tableName)
-                {
-                    tables.RemoveAt(i);
-                    result[0, 0] = "Success: Table " + tableName +  " removed.";
-                }
+                result[0, 0] = "Success: Table " + tableName + " removed.";
+            } else
+            {
+                result[0, 0] = "Fail: No such table found.";
             }
 
             return result;
@@ -312,32 +327,64 @@ namespace DB338Core
 
             // constraints to implement?
 
-            string tableName = tokens[3];
-            string action = tokens[4];
-            string what = tokens[5];
+            string tableName = tokens[2];
+            string action = tokens[3];
+            string what = tokens[4];
 
             if (action == "add")
             {
+                
                 if (what == "column")
                 {
+                    // map column name to "type" and "not null"
+                    IDictionary<string, string> columns = new Dictionary<string, string>();
 
+                    int i = 6;
+                    int idCount = 2;
+                    while (i < tokens.Count || tokens[i] != "constraint")
+                    {
+                        if (tokens[i] != ",")
+                        {
+                            string name = "";
+                            string type = "string"; // default
+
+                            if (idCount == 2) // column name
+                            {
+                                name = tokens[i];
+                                --idCount;
+                            }
+                            else if (idCount == 1) // column type
+                            {
+                                // TODO: handle "NOT NULL" (1 token or 2?)
+                                type = tokens[i];
+                                idCount = 2;
+                            }
+
+                            columns.Add(name, type);
+                        }
+                    }
+
+                    return tables[tableName].addColumns(columns);
                 }
                 else if (what == "constraint")
                 {
                     throw new NotImplementedException();
                 }
-            } 
+            }
+            // <Alter Stm> ::= ALTER TABLE Id DROP COLUMN Id
+            // <Alter Stm> ::= ALTER TABLE Id DROP CONSTRAINT Id
             else if (action == "drop")
             {
                 if (what == "column")
                 {
-
+                    string columnName = tokens[5];
+                    return tables[tableName].dropColumn(columnName);
                 } else if (what == "constraint")
                 {
                     throw new NotImplementedException();
                 }
             }
-
+            return null;
         }
     }
 }
