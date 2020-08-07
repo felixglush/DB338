@@ -1,4 +1,5 @@
-﻿using System;
+﻿using EduDBCore;
+using System;
 using System.Collections.Generic;
 using System.Text;
 
@@ -7,10 +8,10 @@ namespace DB338Core
     class IntSchColumn
     {
         public List<string> items;
-        private string dataType;
+        private TypeEnum dataType;
         private string name;
 
-        public IntSchColumn(string newname, string type)
+        public IntSchColumn(string newname, TypeEnum type)
         {
             name = newname;
             dataType = type;
@@ -19,6 +20,11 @@ namespace DB338Core
         public string Get(int pos)
         {
             return items[pos];
+        }
+
+        public TypeEnum getType()
+        {
+            return dataType;
         }
 
         public string Name { get => name; set => name = value; }

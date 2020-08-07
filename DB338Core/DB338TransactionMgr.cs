@@ -1,4 +1,5 @@
-﻿using GOLD;
+﻿using EduDBCore;
+using GOLD;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -117,31 +118,35 @@ namespace DB338Core
             }
 
             string tableToSelectFrom = tokens[tableOffset];
-            selectionResult = tables[tableToSelectFrom].Select(colsToSelect, whereClause); // Select will check if where is empty or not
+
+            // Record is a row with keys for columns
+            List<Dictionary<string, object>> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
             if (indexGroupby != -1)
             {
-                List<string> havingClause = new List<string>();
 
                 // process group by clause
                 if (indexHaving != -1)
                 {
                     // process having clause 
-
+                    // not implemented yet
                 }
 
                 string colToGroupOn = tokens[indexGroupby + 1];
-                groupResult = tables[tableToSelectFrom].GroupBy(selectionResult, colToGroupOn, havingClause); // GroupBy will check if having is empty or not
+                //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
+
             }
 
             if (indexOrderby != -1)
             {
                 // process order by clause
                 string colToOrderOn = tokens[indexOrderby + 1];
-                tables[tableToSelectFrom].OrderBy(selectionResult, colToOrderOn);
+
+                IEnumerable<Dictionary<string, object>> query = result.OrderBy(record => record[colToOrderOn]);
+
             }
 
-            return selectionResult;
+            return result;
         }
 
         private bool ProcessInsertStatement(List<string> tokens)
@@ -214,7 +219,7 @@ namespace DB338Core
 
 
             List<string> columnNames = new List<string>();
-            List<string> columnTypes = new List<string>();
+            List<TypeEnum> columnTypes = new List<TypeEnum>();
 
             int idCount = 2;
             for (int i = 4; i < tokens.Count; ++i)
@@ -236,7 +241,24 @@ namespace DB338Core
                     }
                     else if (idCount == 1)
                     {
-                        columnTypes.Add(tokens[i]);
+                        TypeEnum type;
+
+                        switch (tokens[i])
+                        {
+                            case "string": 
+                                type = TypeEnum.String;
+                                break;
+                            case "integer": 
+                                type = TypeEnum.Integer;
+                                break;
+                            case "float":
+                                type = TypeEnum.Float;
+                                break;
+                            default:
+                                throw new Exception("Type not supported: " + tokens[i]);
+                        }
+
+                        columnTypes.Add(type);
                         idCount = 2;
                     }
                 }
@@ -350,7 +372,7 @@ namespace DB338Core
                 if (what == "column")
                 {
                     // map column name to "type" and "not null"
-                    IDictionary<string, string> columns = new Dictionary<string, string>();
+                    IDictionary<string, TypeEnum> columns = new Dictionary<string, TypeEnum>();
 
                     int i = 6;
                     int idCount = 2;
@@ -359,7 +381,7 @@ namespace DB338Core
                         if (tokens[i] != ",")
                         {
                             string name = "";
-                            string type = "string"; // default
+                            string type = ""; // default
 
                             if (idCount == 2) // column name
                             {
@@ -373,7 +395,20 @@ namespace DB338Core
                                 idCount = 2;
                             }
 
-                            columns.Add(name, type);
+                            switch (type)
+                            {
+                                case "string":
+                                    columns.Add(name, TypeEnum.String);
+                                    break;
+                                case "integer":
+                                    columns.Add(name, TypeEnum.Integer);
+                                    break;
+                                case "float":
+                                    columns.Add(name, TypeEnum.Float);
+                                    break;
+                                default:
+                                    throw new Exception("Unsuported type: " + type);
+                            }
                         }
                     }
 

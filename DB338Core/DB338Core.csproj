@@ -56,6 +56,7 @@
     <Compile Include="QueryResult.cs" />
     <Compile Include="SQLParser.cs" />
     <Compile Include="IntSchTable.cs" />
+    <Compile Include="TypeEnum.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="grammar.egt">
