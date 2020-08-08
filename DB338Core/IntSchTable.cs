@@ -82,24 +82,49 @@ namespace DB338Core
                         default: throw new Exception("Unsupported condition operator");
                     }
                 case TypeEnum.Integer:
-                    switch (conditionOperator)
+                    int valueInt;
+                    int conditionInt;
+
+                    bool isValueInt = Int32.TryParse((string)value, out valueInt);
+                    bool isConditionInt = Int32.TryParse((string)value, out conditionInt);
+
+                    if (isValueInt && isConditionInt)
                     {
-                        case ">": return (int)value > (int)condition; // value > condition
-                        case ">=": return (int)value >= (int)condition; // value >= condition
-                        case "<": return (int)value < (int)condition; // value < condition
-                        case "<=": return (int)value <= (int)condition; // value <= condition
-                        case "==": return (int)value == (int)condition; // value == condition
-                        default: throw new Exception("Unsupported condition operator");
+                        switch (conditionOperator)
+                        {
+                            case ">": return valueInt > conditionInt; // value > condition
+                            case ">=": return valueInt >= conditionInt; // value >= condition
+                            case "<": return valueInt < conditionInt; // value < condition
+                            case "<=": return valueInt <= conditionInt; // value <= condition
+                            case "==": return valueInt == conditionInt; // value == condition
+                            default: throw new Exception("Unsupported condition operator");
+                        }
+                    } else
+                    {
+                        throw new Exception("Condition or value wasn't a valid integer");
                     }
                 case TypeEnum.Float:
-                    switch (conditionOperator)
+                    float valueFloat;
+                    float conditionFloat;
+
+                    bool isValueFloat = Single.TryParse((string)value, out valueFloat);
+                    bool isConditionFloat = Single.TryParse((string)value, out conditionFloat);
+
+                    if (isValueFloat && isConditionFloat)
                     {
-                        case ">": return (float)value > (float)condition; // value > condition
-                        case ">=": return (float)value >= (float)condition; // value >= condition
-                        case "<": return (float)value < (float)condition; // value < condition
-                        case "<=": return (float)value <= (float)condition; // value <= condition
-                        case "==": return (float)value == (float)condition; // value == condition
-                        default: throw new Exception("Unsupported condition operator");
+                        switch (conditionOperator)
+                        {
+                            case ">": return valueFloat > conditionFloat; // value > condition
+                            case ">=": return valueFloat>= conditionFloat; // value >= condition
+                            case "<": return valueFloat < conditionFloat; // value < condition
+                            case "<=": return valueFloat <= conditionFloat; // value <= condition
+                            case "==": return valueFloat == conditionFloat; // value == condition
+                            default: throw new Exception("Unsupported condition operator");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Condition or value wasn't a valid integer");
                     }
                 default:
                     return true;
