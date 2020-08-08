@@ -118,7 +118,7 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="TxtQuery.Text" xml:space="preserve">
-    <value>create table test(col1 whatever, col2 whatever, col3 whatever)
+    <value>create table test(col1 int, col2 int, col3 int)
 insert into test(col1, col2, col3) values(100, 200, 300)
 insert into test(col1, col2, col3) values(1000, 2000, 3000)
 insert into test(col1, col2, col3) values(10000, 20000, 30000)

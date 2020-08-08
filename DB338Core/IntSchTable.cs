@@ -115,8 +115,8 @@ namespace DB338Core
         // insert a record into the table
         public void Insert(List<string> columnNames, List<string> columnValues)
         {
-            printList(columnNames, "insert column names");
-            printList(columnValues, "insert column values");
+            printList(columnNames, "Log insert column names");
+            printList(columnValues, "Log insert column values");
 
             if (columnNames.Count == columnValues.Count)
             {

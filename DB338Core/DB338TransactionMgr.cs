@@ -27,6 +27,12 @@ namespace DB338Core
             string[,] results = new string[1,1];
             bool success;
 
+            Console.WriteLine("Tokens:");
+            foreach(string t in tokens)
+            {    
+                Console.WriteLine(t);
+            }
+
             if (type == "create")
             {
                 success = ProcessCreateTableStatement(tokens);
@@ -63,7 +69,137 @@ namespace DB338Core
 
             return results;
         }
+        
+        // create table test(col1 whatever, col2 whatever, col3 whatever)
+        private bool ProcessCreateTableStatement(List<string> tokens)
+        {
+            // assuming only the following rule is accepted
+            // <Create Stm> ::= CREATE TABLE Id '(' <ID List> ')'  ------ NO SUPPORT for <Constraint Opt>
 
+            string newTableName = tokens[2];
+
+            if (tables.ContainsKey(newTableName))
+            {
+                //cannot create a new table with the same name
+                return false;
+            }
+
+            List<string> columnNames = new List<string>();
+            List<TypeEnum> columnTypes = new List<TypeEnum>();
+
+            int idCount = 2;
+            for (int i = 4; i < tokens.Count; ++i)
+            {
+                if (tokens[i] == ")")
+                {
+                    break;
+                }
+                else if (tokens[i] == ",")
+                {
+                    continue;
+                }
+                else
+                {
+                    if (idCount == 2)
+                    {
+                        columnNames.Add(tokens[i]);
+                        --idCount;
+                    }
+                    else if (idCount == 1)
+                    {
+                        TypeEnum type;
+
+                        switch (tokens[i])
+                        {
+                            case "varchar(255)":
+                                type = TypeEnum.String;
+                                break;
+                            case "int":
+                                type = TypeEnum.Integer;
+                                break;
+                            case "float":
+                                type = TypeEnum.Float;
+                                break;
+                            default:
+                                throw new Exception("Type not supported: " + tokens[i]);
+                        }
+
+                        columnTypes.Add(type);
+                        idCount = 2;
+                    }
+                }
+            }
+
+            IntSchTable newTable = new IntSchTable(newTableName);
+
+            for (int i = 0; i < columnNames.Count; ++i)
+            {
+                newTable.AddColumn(columnNames[i], columnTypes[i]);
+            }
+
+            tables.Add(newTableName, newTable);
+
+            return true;
+        }
+
+        // insert into test(col1, col2, col3) values(100, 200, 300)
+        // insert into test(col1, col2, col3) values(1000, 2000, 3000)
+        // insert into test(col1, col2, col3) values(10000, 20000, 30000)    
+        private bool ProcessInsertStatement(List<string> tokens)
+        {
+            // <Insert Stm> ::= INSERT INTO Id '(' <ID List> ')' VALUES '(' <Expr List> ')'
+
+            List<string> columnNames = new List<string>();
+            List<string> columnValues = new List<string>();
+
+            int firstValueOffset = 0;
+
+            for (int i = 4; i < tokens.Count; ++i)
+            {
+                if (tokens[i] == ")")
+                {
+                    firstValueOffset = i + 3;
+                    break;
+                }
+                else if (tokens[i] == ",")
+                {
+                    continue;
+                }
+                else
+                {
+                    columnNames.Add(tokens[i]);
+                }
+            }
+
+            for (int i = firstValueOffset; i < tokens.Count; ++i)
+            {
+                if (tokens[i] == ")")
+                {
+                    break;
+                }
+                else if (tokens[i] == ",")
+                {
+                    continue;
+                }
+                else
+                {
+                    columnValues.Add(tokens[i]);
+                }
+            }
+
+            if (columnNames.Count != columnValues.Count)
+            {
+                return false;
+            }
+            else
+            {
+                string insertTableName = tokens[2];
+                tables[insertTableName].Insert(columnNames, columnValues);
+                return true;
+            }
+        }
+
+        // select col1, col2, col3 from test
         private string[,] ProcessSelectStatement(List<string> tokens)
         {
             // <Select Stm> ::= SELECT <Columns> <From Clause> <Where Clause> <Group Clause> <Having Clause> <Order Clause>
@@ -79,8 +215,9 @@ namespace DB338Core
                 return new string[1, 1] { { "Error: Having clause must have group by." } };
             }
 
-
             List<string> colsToSelect = new List<string>();
+
+            int indexOfFrom = tokens.IndexOf("from");
             int tableOffset = 0;
 
             for (int i = 1; i < tokens.Count; ++i)
@@ -96,7 +233,7 @@ namespace DB338Core
                 }
                 else
                 {
-                    colsToSelect.Add(tokens[i]); // aggregate function detection
+                    colsToSelect.Add(tokens[i]); // TODO: aggregate function detection...
                 }
             }
 
@@ -113,6 +250,7 @@ namespace DB338Core
                     {
                         break;
                     }
+                    i += 1;
                 }
 
             }
@@ -146,134 +284,23 @@ namespace DB338Core
 
             }
 
-            return result;
-        }
-
-        private bool ProcessInsertStatement(List<string> tokens)
-        {
-            // <Insert Stm> ::= INSERT INTO Id '(' <ID List> ')' VALUES '(' <Expr List> ')'
-
-            List<string> columnNames = new List<string>();
-            List<string> columnValues = new List<string>();
-
-            int offset = 0;
-
-            for (int i = 4; i < tokens.Count; ++i)
-            {
-                if (tokens[i] == ")")
-                {
-                    offset = i + 3;
-                    break;
-                }
-                else if (tokens[i] == ",")
-                {
-                    continue;
-                }
-                else
-                {
-                    columnNames.Add(tokens[i]);
-                }
-            }
-
-            for (int i = offset; i < tokens.Count; ++i)
-            {
-                if (tokens[i] == ")")
-                {
-                    break;
-                }
-                else if (tokens[i] == ",")
-                {
-                    continue;
-                }
-                else
-                {
-                    columnValues.Add(tokens[i]);
-                }
-            }
-
-            if (columnNames.Count != columnValues.Count)
-            {
-                return false;
-            }
-            else
-            {
-                string insertTableName = tokens[2];
-                tables[insertTableName].Insert(columnNames, columnValues);
-                return true;
-            }
-        }
-
-        private bool ProcessCreateTableStatement(List<string> tokens)
-        {
-            // assuming only the following rule is accepted
-            // <Create Stm> ::= CREATE TABLE Id '(' <ID List> ')'  ------ NO SUPPORT for <Constraint Opt>
-
-            string newTableName = tokens[2];
-
+            string[,] returnResult = new string[result.Count,result[0].Count];
+            List<string> columns = result[0].Keys.ToList();
             
-            if (tables.ContainsKey(newTableName))
+            // for each row
+            for (int i = 0; i < result.Count; ++i)
             {
-                //cannot create a new table with the same name
-                return false;
-            }
-
-
-            List<string> columnNames = new List<string>();
-            List<TypeEnum> columnTypes = new List<TypeEnum>();
-
-            int idCount = 2;
-            for (int i = 4; i < tokens.Count; ++i)
-            {
-                if (tokens[i] == ")")
+                // for each column
+                for (int j = 0; j < columns.Count; ++j)
                 {
-                    break;
-                }
-                else if (tokens[i] == ",")
-                {
-                    continue;
-                }
-                else
-                {
-                    if (idCount == 2)
+                    if (colsToSelect.Contains(columns[j]))
                     {
-                        columnNames.Add(tokens[i]);
-                        --idCount;
-                    }
-                    else if (idCount == 1)
-                    {
-                        TypeEnum type;
-
-                        switch (tokens[i])
-                        {
-                            case "string": 
-                                type = TypeEnum.String;
-                                break;
-                            case "integer": 
-                                type = TypeEnum.Integer;
-                                break;
-                            case "float":
-                                type = TypeEnum.Float;
-                                break;
-                            default:
-                                throw new Exception("Type not supported: " + tokens[i]);
-                        }
-
-                        columnTypes.Add(type);
-                        idCount = 2;
+                        returnResult[i, j] = (string)result[i][columns[j]];
                     }
                 }
             }
 
-            IntSchTable newTable = new IntSchTable(newTableName);
-
-            for (int i = 0; i < columnNames.Count; ++i)
-            {
-                newTable.AddColumn(columnNames[i], columnTypes[i]);
-            }
-
-            tables.Add(newTableName, newTable);
-
-            return true;
+            return returnResult;
         }
 
         private string[,] ProcessUpdateStatement(List<string> tokens)
