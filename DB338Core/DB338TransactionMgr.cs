@@ -284,19 +284,21 @@ namespace DB338Core
 
             }
 
-            string[,] returnResult = new string[result.Count,result[0].Count];
-            List<string> columns = result[0].Keys.ToList();
+            if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
+            {
+                colsToSelect.RemoveAt(0);
+                colsToSelect = tables[tableToSelectFrom].getColumnNames();
+            }
+
+            string[,] returnResult = new string[result.Count, colsToSelect.Count];
             
             // for each row
             for (int i = 0; i < result.Count; ++i)
             {
                 // for each column
-                for (int j = 0; j < columns.Count; ++j)
+                for (int j = 0; j < colsToSelect.Count; ++j)
                 {
-                    if (colsToSelect.Contains(columns[j]))
-                    {
-                        returnResult[i, j] = (string)result[i][columns[j]];
-                    }
+                    returnResult[i, j] = (string)result[i][colsToSelect[j]];   
                 }
             }
 

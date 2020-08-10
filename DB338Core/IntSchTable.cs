@@ -40,6 +40,11 @@ namespace DB338Core
             }
         }
 
+        public List<string> getColumnNames()
+        {
+            return columns.Keys.ToList();
+        }
+
         public List<Dictionary<string, object>> Select(List<string> whereClause)
         {
             printList(whereClause, "WHERE CLAUSE");
@@ -78,7 +83,7 @@ namespace DB338Core
                         case ">=": return comparisonResult <= 0; // value >= condition
                         case "<": return comparisonResult > 0; // value < condition
                         case "<=": return comparisonResult >= 0; // value <= condition
-                        case "==": return comparisonResult == 0; // value == condition
+                        case "=": return comparisonResult == 0; // value == condition
                         default: throw new Exception("Unsupported condition operator");
                     }
                 case TypeEnum.Integer:
@@ -86,7 +91,7 @@ namespace DB338Core
                     int conditionInt;
 
                     bool isValueInt = Int32.TryParse((string)value, out valueInt);
-                    bool isConditionInt = Int32.TryParse((string)value, out conditionInt);
+                    bool isConditionInt = Int32.TryParse((string)condition, out conditionInt);
 
                     if (isValueInt && isConditionInt)
                     {
@@ -96,7 +101,7 @@ namespace DB338Core
                             case ">=": return valueInt >= conditionInt; // value >= condition
                             case "<": return valueInt < conditionInt; // value < condition
                             case "<=": return valueInt <= conditionInt; // value <= condition
-                            case "==": return valueInt == conditionInt; // value == condition
+                            case "=": return valueInt == conditionInt; // value == condition
                             default: throw new Exception("Unsupported condition operator");
                         }
                     } else
@@ -108,7 +113,7 @@ namespace DB338Core
                     float conditionFloat;
 
                     bool isValueFloat = Single.TryParse((string)value, out valueFloat);
-                    bool isConditionFloat = Single.TryParse((string)value, out conditionFloat);
+                    bool isConditionFloat = Single.TryParse((string)condition, out conditionFloat);
 
                     if (isValueFloat && isConditionFloat)
                     {
@@ -118,7 +123,7 @@ namespace DB338Core
                             case ">=": return valueFloat>= conditionFloat; // value >= condition
                             case "<": return valueFloat < conditionFloat; // value < condition
                             case "<=": return valueFloat <= conditionFloat; // value <= condition
-                            case "==": return valueFloat == conditionFloat; // value == condition
+                            case "=": return valueFloat == conditionFloat; // value == condition
                             default: throw new Exception("Unsupported condition operator");
                         }
                     }
