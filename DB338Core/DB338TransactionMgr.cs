@@ -316,19 +316,23 @@ namespace DB338Core
 
             string tableName = tokens[1];
             Dictionary<string, string> newColValues = new Dictionary<string, string>();
-            List<string> whereClause = new List<string>();
+            List<string> whereClause = null;
 
-            int whereOffset = tokens.IndexOf("where");
+            int endAssign = tokens.IndexOf("where");
 
-            if (whereOffset != -1)
+            if (endAssign != -1)
             {
-                for (int i = whereOffset + 1;  i < tokens.Count; ++i)
+                whereClause = new List<string>();
+                for (int i = endAssign + 1;  i < tokens.Count; ++i)
                 {
                     whereClause.Add(tokens[i]);
                 }
+            } else
+            {
+                endAssign = tokens.Count;   
             }
 
-            for (int i = 3; i < whereOffset;  ++i)
+            for (int i = 3; i < endAssign; ++i)
             {
                 if (tokens[i] == "=")
                 {
@@ -338,8 +342,8 @@ namespace DB338Core
 
             // list of rows is returned. each row is a mapping between the column name and its value in that row.
             List<Dictionary<string, object>> result = tables[tableName].Update(newColValues, whereClause);
-            List<string> columns = result[0].Keys.ToList();
-            string[,] returnResult = new string[result.Count, columns.Count];
+            List<string> columnNames = result[0].Keys.ToList();
+            string[,] returnResult = new string[result.Count, columnNames.Count];
             
             // for each row
             for (int i = 0; i < result.Count; ++i)
@@ -347,7 +351,7 @@ namespace DB338Core
                 // for each column
                 for (int j = 0; j < result[0].Count; ++j)
                 {
-                    returnResult[i, j] = (string)result[i][columns[j]];
+                    returnResult[i, j] = (string)result[i][columnNames[j]];
                 }
             }
 

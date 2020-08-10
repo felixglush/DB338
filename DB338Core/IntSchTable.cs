@@ -47,10 +47,9 @@ namespace DB338Core
 
         public List<Dictionary<string, object>> Select(List<string> whereClause)
         {
-            printList(whereClause, "WHERE CLAUSE");
-            
             if (whereClause != null && whereClause.Count > 0)
             {
+                printList(whereClause, "WHERE CLAUSE");
                 List<Dictionary<string, object>> filteredRows = rows.Where(row => processWhere(row, whereClause)).ToList();
                 return filteredRows;
             }
@@ -196,17 +195,26 @@ namespace DB338Core
         {
             for (int i = 0; i < rows.Count; ++i)
             {
-                if (processWhere(rows[i], whereClause))
+                if (whereClause != null && processWhere(rows[i], whereClause))
                 {
-                    foreach (KeyValuePair<string, string> columnValue in newColValues)
-                    {
-                        columns[columnValue.Key].setItemValue(columnValue.Value, i);
-                        rows[i][columnValue.Key] = columnValue.Value; // also update row representation... 
-                    }
+                    updateRows(newColValues, i);
+                }
+                else if (whereClause == null)
+                {
+                    updateRows(newColValues, i);
                 }
             }
                 
             return Select(null);
+        }
+
+        private void updateRows(Dictionary<string, string> newColValues, int i)
+        {
+            foreach (KeyValuePair<string, string> columnValue in newColValues)
+            {
+                columns[columnValue.Key].setItemValue(columnValue.Value, i);
+                rows[i][columnValue.Key] = columnValue.Value; // also update row representation... 
+            }
         }
     }
 }
