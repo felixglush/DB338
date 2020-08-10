@@ -111,7 +111,7 @@ namespace DB338Core
 
                         switch (tokens[i])
                         {
-                            case "varchar(255)":
+                            case "varchar":
                                 type = TypeEnum.String;
                                 break;
                             case "int":
@@ -257,7 +257,7 @@ namespace DB338Core
 
             string tableToSelectFrom = tokens[tableOffset];
 
-            // Record is a row with keys for columns
+            // list of rows is returned. each row is a mapping between the column name and its value in that row.
             List<Dictionary<string, object>> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
             if (indexGroupby != -1)
@@ -315,35 +315,43 @@ namespace DB338Core
              */
 
             string tableName = tokens[1];
-            List<string> cols = new List<string>();
-            List<string> newVals = new List<string>();
-            string conditionCol = null;
-            string conditionVal = null;
-            string condition = null;
+            Dictionary<string, string> newColValues = new Dictionary<string, string>();
+            List<string> whereClause = new List<string>();
 
             int whereOffset = tokens.IndexOf("where");
-            int assignEnd = tokens.Count;
 
             if (whereOffset != -1)
             {
-                assignEnd = whereOffset;
-
-                // where col = cond
-                conditionCol = tokens[whereOffset + 1];
-                condition = tokens[whereOffset + 2];
-                conditionVal = tokens[whereOffset + 3];
-            }
-
-            for (int i = 3; i < assignEnd;  ++i)
-            {
-                if (tokens[i] == "=")
+                for (int i = whereOffset + 1;  i < tokens.Count; ++i)
                 {
-                    cols.Add(tokens[i -  1]);
-                    newVals.Add(tokens[i + 1]);
+                    whereClause.Add(tokens[i]);
                 }
             }
 
-            return tables[tableName].Update(cols, newVals, conditionCol, conditionVal, condition);
+            for (int i = 3; i < whereOffset;  ++i)
+            {
+                if (tokens[i] == "=")
+                {
+                    newColValues[tokens[i - 1]] = tokens[i + 1];
+                }
+            }
+
+            // list of rows is returned. each row is a mapping between the column name and its value in that row.
+            List<Dictionary<string, object>> result = tables[tableName].Update(newColValues, whereClause);
+            List<string> columns = result[0].Keys.ToList();
+            string[,] returnResult = new string[result.Count, columns.Count];
+            
+            // for each row
+            for (int i = 0; i < result.Count; ++i)
+            {
+                // for each column
+                for (int j = 0; j < result[0].Count; ++j)
+                {
+                    returnResult[i, j] = (string)result[i][columns[j]];
+                }
+            }
+
+            return returnResult;
         }
 
         private string[,] ProcessDropStatement(List<string> tokens)

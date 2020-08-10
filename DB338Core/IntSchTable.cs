@@ -192,13 +192,21 @@ namespace DB338Core
 
         public bool dropColumn(string columnName) => columns.Remove(columnName);
 
-        public string[,] Update(List<string> updateCols, List<string> values, string conditionCol, string conditionValue, string condition)
+        public List<Dictionary<string, object>> Update(Dictionary<string, string> newColValues, List<string> whereClause)
         {
-            // return the string[,] of the table affected
-            //return Select((List<string>) columns.Keys, null);
-            return null;
+            for (int i = 0; i < rows.Count; ++i)
+            {
+                if (processWhere(rows[i], whereClause))
+                {
+                    foreach (KeyValuePair<string, string> columnValue in newColValues)
+                    {
+                        columns[columnValue.Key].setItemValue(columnValue.Value, i);
+                        rows[i][columnValue.Key] = columnValue.Value; // also update row representation... 
+                    }
+                }
+            }
+                
+            return Select(null);
         }
-
-       
     }
 }
