@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.AccessControl;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -69,7 +70,24 @@ namespace DB338Core
 
             return results;
         }
-        
+
+        private static string[,] ConvertToArray(List<Dictionary<string, object>> rows, List<string> columnNames)
+        {
+            string[,] returnResult = new string[rows.Count, columnNames.Count];
+
+            // for each row
+            for (int i = 0; i < rows.Count; ++i)
+            {
+                // for each column
+                for (int j = 0; j < columnNames.Count; ++j)
+                {
+                    returnResult[i, j] = (string)rows[i][columnNames[j]];
+                }
+            }
+
+            return returnResult;
+        }
+
         // create table test(col1 whatever, col2 whatever, col3 whatever)
         private bool ProcessCreateTableStatement(List<string> tokens)
         {
@@ -252,57 +270,71 @@ namespace DB338Core
                     }
                     i += 1;
                 }
-
             }
 
             string tableToSelectFrom = tokens[tableOffset];
 
-            // list of rows is returned. each row is a mapping between the column name and its value in that row.
-            List<Dictionary<string, object>> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
-
-            if (indexGroupby != -1)
+            if (tables.ContainsKey(tableToSelectFrom))
             {
+                // list of rows is returned. each row is a mapping between the column name and its value in that row.
+                List<Dictionary<string, object>> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
-                // process group by clause
-                if (indexHaving != -1)
+                if (indexGroupby != -1)
                 {
-                    // process having clause 
-                    // not implemented yet
+
+                    // process group by clause
+                    if (indexHaving != -1)
+                    {
+                        // process having clause 
+                        // not implemented yet
+                    }
+
+                    string colToGroupOn = tokens[indexGroupby + 1];
+                    //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
+
                 }
 
-                string colToGroupOn = tokens[indexGroupby + 1];
-                //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
-
-            }
-
-            if (indexOrderby != -1)
-            {
-                // process order by clause
-                string colToOrderOn = tokens[indexOrderby + 1];
-
-                IEnumerable<Dictionary<string, object>> query = result.OrderBy(record => record[colToOrderOn]);
-
-            }
-
-            if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
-            {
-                colsToSelect.RemoveAt(0);
-                colsToSelect = tables[tableToSelectFrom].getColumnNames();
-            }
-
-            string[,] returnResult = new string[result.Count, colsToSelect.Count];
-            
-            // for each row
-            for (int i = 0; i < result.Count; ++i)
-            {
-                // for each column
-                for (int j = 0; j < colsToSelect.Count; ++j)
+                if (indexOrderby != -1)
                 {
-                    returnResult[i, j] = (string)result[i][colsToSelect[j]];   
-                }
-            }
+                    // process order by clause
+                    string colToOrderOn = tokens[indexOrderby + 1];
 
-            return returnResult;
+                    IEnumerable<Dictionary<string, object>> query = result.OrderBy(record => record[colToOrderOn]);
+
+                }
+
+                List<string> tableColumns = tables[tableToSelectFrom].getColumnNames();
+
+                if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
+                {
+                    colsToSelect.RemoveAt(0);
+                    colsToSelect = tableColumns;
+                }
+
+                string[,] returnResult = new string[result.Count, colsToSelect.Count];
+                
+                // for each row
+                for (int i = 0; i < result.Count; ++i)
+                {
+                    // for each column
+                    for (int j = 0; j < colsToSelect.Count; ++j)
+                    {
+                        if (tableColumns.Contains(colsToSelect[j]))
+                        {
+                            returnResult[i, j] = (string)result[i][colsToSelect[j]];
+                        } else
+                        {
+                            return new string[,] { { "No such column " + colsToSelect[j] + " in the table " + tableToSelectFrom } };
+                        }
+                    }
+                }
+
+                return returnResult;
+            }
+            else
+            {
+                return new string[,] { { "No such table in the database" } };
+            }   
         }
 
         private string[,] ProcessUpdateStatement(List<string> tokens)
@@ -312,6 +344,8 @@ namespace DB338Core
              * update customers
              * set contactname = "alfred", city = "toronto"
              * where id = 1
+             * 
+             * if no where, update every row
              */
 
             string tableName = tokens[1];
@@ -323,13 +357,14 @@ namespace DB338Core
             if (endAssign != -1)
             {
                 whereClause = new List<string>();
-                for (int i = endAssign + 1;  i < tokens.Count; ++i)
+                for (int i = endAssign + 1; i < tokens.Count; ++i)
                 {
                     whereClause.Add(tokens[i]);
                 }
-            } else
+            }
+            else
             {
-                endAssign = tokens.Count;   
+                endAssign = tokens.Count;
             }
 
             for (int i = 3; i < endAssign; ++i)
@@ -343,48 +378,58 @@ namespace DB338Core
             // list of rows is returned. each row is a mapping between the column name and its value in that row.
             List<Dictionary<string, object>> result = tables[tableName].Update(newColValues, whereClause);
             List<string> columnNames = result[0].Keys.ToList();
-            string[,] returnResult = new string[result.Count, columnNames.Count];
-            
-            // for each row
-            for (int i = 0; i < result.Count; ++i)
-            {
-                // for each column
-                for (int j = 0; j < result[0].Count; ++j)
-                {
-                    returnResult[i, j] = (string)result[i][columnNames[j]];
-                }
-            }
+            string[,] returnResult = ConvertToArray(result, columnNames);
 
             return returnResult;
         }
-
+       
         private string[,] ProcessDropStatement(List<string> tokens)
         {
             // <Drop Stm> ::= DROP TABLE Id
-            string[,] result = new string[1, 1];
             string tableName = tokens[2];
-            
             bool success = tables.Remove(tableName);
 
             if (success)
             {
-                result[0, 0] = "Success: Table " + tableName + " removed.";
+                return new string[,] { { "Success: Table " + tableName + " removed." } };
             } else
             {
-                result[0, 0] = "Fail: No such table found.";
+                return new string[,] { { "Fail: No such table found." } };
             }
-
-            return result;
         }
 
         private string[,] ProcessDeleteStatement(List<string> tokens)
         {
             // <Delete Stm> ::= DELETE FROM Id <Where Clause>
-            string tableName = tokens[3];
 
-            // some kind of boolean logic to process the where condition
+            string tableName = tokens[2];
+            if (tables.ContainsKey(tableName))
+            {
+                List<string> columnNames = tables[tableName].getColumnNames();
+                List<Dictionary<string, object>> result;
 
-            throw new NotImplementedException();
+                int indexWhere = tokens.IndexOf("where");
+
+                if (indexWhere == -1) // deletes every row
+                {
+                    result = tables[tableName].DeleteRows(null);
+                    return ConvertToArray(result, columnNames);
+                }
+                else
+                {
+                    List<string> whereClause = new List<string>();
+                    for (int i = indexWhere + 1; i < tokens.Count; ++i)
+                    {
+                        whereClause.Add(tokens[i]);
+                    }
+
+                    result = tables[tableName].DeleteRows(whereClause);
+                    return ConvertToArray(result, columnNames);
+                }
+            } else
+            {
+                return new string[,] { { "No such table in the database" } };
+            }
         }
 
         
@@ -405,7 +450,6 @@ namespace DB338Core
             string tableName = tokens[2];
             string action = tokens[3];
             string what = tokens[4];
-            bool result = false;
 
             if (action == "add")
             {

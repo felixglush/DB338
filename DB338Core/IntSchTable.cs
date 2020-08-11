@@ -216,5 +216,21 @@ namespace DB338Core
                 rows[i][columnValue.Key] = columnValue.Value; // also update row representation... 
             }
         }
+
+        public List<Dictionary<string, object>> DeleteRows(List<string> whereClause)
+        {
+            if (whereClause != null)
+            {
+                rows.RemoveAll(row => processWhere(row, whereClause));
+                // deal with cols
+            }
+            else if (whereClause == null)
+            {
+                rows.RemoveRange(0, rows.Count);
+                // deal with cols
+            }
+
+            return Select(null);
+        }
     }
 }
