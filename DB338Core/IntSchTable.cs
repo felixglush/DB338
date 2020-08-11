@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Windows.Forms;
 using System.Linq;
+using System.Collections;
 
 namespace DB338Core
 {
@@ -18,7 +19,7 @@ namespace DB338Core
 
         // list of records, each record is a map between column name and the value. this makes filtering out entire rows easier.
         // otherwise, would have to create a list of indices for which rows to filter out when going through the columns variable
-        private List<Dictionary<string, object>> rows;
+        private List<IntSchRow> rows;
 
         private int LOG = 1; // maybe make a logger class?
 
@@ -38,6 +39,11 @@ namespace DB338Core
                 System.Console.WriteLine(type);
                 list.ForEach(System.Console.WriteLine);
             }
+        }
+
+        public bool ContainsColumn(string name)
+        {
+            return columns.ContainsKey(name);
         }
 
         public List<string> getColumnNames()
@@ -162,9 +168,9 @@ namespace DB338Core
             }
         }
 
-        public bool AddColumn(string name, TypeEnum type)
+        public string AddColumn(string name, TypeEnum type)
         {
-            if (columns.ContainsKey(name)) return false;
+            if (columns.ContainsKey(name)) return "Column " + name + " already exists in the table" ;
 
             if (LOG == 1) System.Console.WriteLine("ADD COLUMN " + name + " " + type);
 
@@ -173,23 +179,39 @@ namespace DB338Core
             // for each row, add the column with a null value
             for (int i = 0;  i < rows.Count; ++i) rows[i][name] = null;
 
-            return true;
+            return "";
         }
 
         // Dictionary maps column names to types
-        internal bool addColumns(IDictionary<string, TypeEnum> cols)
+        internal string addColumns(IDictionary<string, TypeEnum> cols)
         {
-            bool result = false;
             foreach (KeyValuePair<string, TypeEnum> entry in cols)
             {
-                result = AddColumn(entry.Key, entry.Value);
-                if (!result) return false;
+                string result = AddColumn(entry.Key, entry.Value);
+                if (result != "") return result;
             }
 
-            return result;
+            return "Successfullly added all columns";
         }
 
-        public bool dropColumn(string columnName) => columns.Remove(columnName);
+        public string dropColumn(string columnName)
+        { 
+            if (columns.ContainsKey(columnName))
+            {
+                bool success = columns.Remove(columnName);
+                if (success)
+                {
+                    for (int i = 0; i < rows.Count; ++i) rows[i].Remove(columnName);
+                    return "Successfully removed column.";
+                } else
+                {
+                    return "Failed to remove column.";
+                }
+            } else
+            {
+                return "Column " + columnName + " not found in the table";
+            }
+        }
 
         public List<Dictionary<string, object>> Update(Dictionary<string, string> newColValues, List<string> whereClause)
         {
@@ -231,6 +253,14 @@ namespace DB338Core
             }
 
             return Select(null);
+        }
+
+        internal List<Dictionary<string, object>> OrderBy(List<Dictionary<string, object>> rows, string colToOrderOn)
+        {
+            // return rows.Sort(delegate(Dictionary<string, object> x, Dictionary<string, object> x {}));
+
+            // This won't work great because typing is not considered correctly... 
+            return rows.OrderBy(row => row[colToOrderOn]).ToList();
         }
     }
 }

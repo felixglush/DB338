@@ -25,22 +25,20 @@ namespace DB338Core
 
         public string[,] Process(List<string> tokens, string type)
         {
-            string[,] results = new string[1,1];
-            bool success;
-
             Console.WriteLine("Tokens:");
             foreach(string t in tokens)
             {    
                 Console.WriteLine(t);
             }
 
+            string[,] results;
             if (type == "create")
             {
-                success = ProcessCreateTableStatement(tokens);
+                results = ProcessCreateTableStatement(tokens);
             }
             else if (type == "insert")
             {
-                success = ProcessInsertStatement(tokens);
+                results = ProcessInsertStatement(tokens);
             }
             else if (type == "select")
             {
@@ -89,7 +87,7 @@ namespace DB338Core
         }
 
         // create table test(col1 whatever, col2 whatever, col3 whatever)
-        private bool ProcessCreateTableStatement(List<string> tokens)
+        private string[,] ProcessCreateTableStatement(List<string> tokens)
         {
             // assuming only the following rule is accepted
             // <Create Stm> ::= CREATE TABLE Id '(' <ID List> ')'  ------ NO SUPPORT for <Constraint Opt>
@@ -99,7 +97,7 @@ namespace DB338Core
             if (tables.ContainsKey(newTableName))
             {
                 //cannot create a new table with the same name
-                return false;
+                return new string[,] { { "Table " + newTableName +  " already exists"} };
             }
 
             List<string> columnNames = new List<string>();
@@ -139,7 +137,7 @@ namespace DB338Core
                                 type = TypeEnum.Float;
                                 break;
                             default:
-                                throw new Exception("Type not supported: " + tokens[i]);
+                                return new string[,] { { "Type is not supported: " + tokens[i] } };
                         }
 
                         columnTypes.Add(type);
@@ -157,13 +155,13 @@ namespace DB338Core
 
             tables.Add(newTableName, newTable);
 
-            return true;
+            return new string[,] { { "Succesfully created table "  + newTableName } };
         }
 
         // insert into test(col1, col2, col3) values(100, 200, 300)
         // insert into test(col1, col2, col3) values(1000, 2000, 3000)
         // insert into test(col1, col2, col3) values(10000, 20000, 30000)    
-        private bool ProcessInsertStatement(List<string> tokens)
+        private string[,] ProcessInsertStatement(List<string> tokens)
         {
             // <Insert Stm> ::= INSERT INTO Id '(' <ID List> ')' VALUES '(' <Expr List> ')'
 
@@ -207,13 +205,13 @@ namespace DB338Core
 
             if (columnNames.Count != columnValues.Count)
             {
-                return false;
+                return new string[,] { { "Column count doesn't match value count" } };
             }
             else
             {
                 string insertTableName = tokens[2];
                 tables[insertTableName].Insert(columnNames, columnValues);
-                return true;
+                return new string[,] { { "Table modified" } };
             }
         }
 
@@ -230,7 +228,7 @@ namespace DB338Core
             if (indexGroupby == -1 && indexHaving != -1)
             {
                 // return error, must have group by
-                return new string[1, 1] { { "Error: Having clause must have group by." } };
+                return new string[,] { { "Error: Having clause must have group by." } };
             }
 
             List<string> colsToSelect = new List<string>();
@@ -289,7 +287,7 @@ namespace DB338Core
                         // not implemented yet
                     }
 
-                    string colToGroupOn = tokens[indexGroupby + 1];
+                    string colToGroupOn = tokens[indexGroupby + 2];
                     //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
 
                 }
@@ -297,18 +295,14 @@ namespace DB338Core
                 if (indexOrderby != -1)
                 {
                     // process order by clause
-                    string colToOrderOn = tokens[indexOrderby + 1];
-
-                    IEnumerable<Dictionary<string, object>> query = result.OrderBy(record => record[colToOrderOn]);
-
+                    string colToOrderOn = tokens[indexOrderby + 2];
+                    result = tables[tableToSelectFrom].OrderBy(result, colToOrderOn);
                 }
-
-                List<string> tableColumns = tables[tableToSelectFrom].getColumnNames();
 
                 if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
                 {
                     colsToSelect.RemoveAt(0);
-                    colsToSelect = tableColumns;
+                    colsToSelect = tables[tableToSelectFrom].getColumnNames();
                 }
 
                 string[,] returnResult = new string[result.Count, colsToSelect.Count];
@@ -319,7 +313,7 @@ namespace DB338Core
                     // for each column
                     for (int j = 0; j < colsToSelect.Count; ++j)
                     {
-                        if (tableColumns.Contains(colsToSelect[j]))
+                        if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[j]))
                         {
                             returnResult[i, j] = (string)result[i][colsToSelect[j]];
                         } else
@@ -377,7 +371,7 @@ namespace DB338Core
 
             // list of rows is returned. each row is a mapping between the column name and its value in that row.
             List<Dictionary<string, object>> result = tables[tableName].Update(newColValues, whereClause);
-            List<string> columnNames = result[0].Keys.ToList();
+            List<string> columnNames = tables[tableName].getColumnNames();
             string[,] returnResult = ConvertToArray(result, columnNames);
 
             return returnResult;
@@ -432,7 +426,6 @@ namespace DB338Core
             }
         }
 
-        
         private string[,] ProcessAlterStatement(List<string> tokens)
         {
             // <Alter Stm> ::= ALTER TABLE Id ADD COLUMN <Field Def List> <Constraint Opt>
@@ -445,95 +438,87 @@ namespace DB338Core
             // <Field Def List> ::= <Field Def> ',' <Field Def List>
             // <Field Def List> ::= <Field Def>--
 
-            // constraints to implement?
-
             string tableName = tokens[2];
-            string action = tokens[3];
-            string what = tokens[4];
+            string action = tokens[3]; // add or drop
+            string what = tokens[4]; // column or constraint
 
-            if (action == "add")
+            if (tables.ContainsKey(tableName))
             {
-                
-                if (what == "column")
+                if (action == "add")
                 {
-                    // map column name to "type" and "not null"
-                    IDictionary<string, TypeEnum> columns = new Dictionary<string, TypeEnum>();
-
-                    int i = 6;
-                    int idCount = 2;
-                    while (i < tokens.Count || tokens[i] != "constraint")
+                    if (what == "column")
                     {
-                        if (tokens[i] != ",")
+                        // map column name to type
+                        IDictionary<string, TypeEnum> columns = new Dictionary<string, TypeEnum>();
+
+                        int i = 6;
+                        int idCount = 2;
+                        while (i < tokens.Count || tokens[i] != "constraint")
                         {
-                            string name = "";
-                            string type = ""; // default
+                            if (tokens[i] != ",")
+                            {
+                                string name = "";
+                                string type = ""; // default
 
-                            if (idCount == 2) // column name
-                            {
-                                name = tokens[i];
-                                --idCount;
-                            }
-                            else if (idCount == 1) // column type
-                            {
-                                // TODO: handle "NOT NULL" (1 token or 2?)
-                                type = tokens[i];
-                                idCount = 2;
-                            }
+                                if (idCount == 2) // column name
+                                {
+                                    name = tokens[i];
+                                    --idCount;
+                                }
+                                else if (idCount == 1) // column type
+                                {
+                                    type = tokens[i];
+                                    idCount = 2;
+                                }
 
-                            switch (type)
-                            {
-                                case "string":
-                                    columns.Add(name, TypeEnum.String);
-                                    break;
-                                case "integer":
-                                    columns.Add(name, TypeEnum.Integer);
-                                    break;
-                                case "float":
-                                    columns.Add(name, TypeEnum.Float);
-                                    break;
-                                default:
-                                    throw new Exception("Unsuported type: " + type);
+                                switch (type)
+                                {
+                                    case "varchar":
+                                        columns.Add(name, TypeEnum.String);
+                                        break;
+                                    case "int":
+                                        columns.Add(name, TypeEnum.Integer);
+                                        break;
+                                    case "float":
+                                        columns.Add(name, TypeEnum.Float);
+                                        break;
+                                    default:
+                                        throw new Exception("Unsupported type: " + type);
+                                }
                             }
+                            i += 1;
                         }
-                    }
 
-                    bool success = tables[tableName].addColumns(columns);
-                    if (success)
-                    {
-                        return new string[,] { { "Add columns successful" } };
+                        string result = tables[tableName].addColumns(columns);
+                        return new string[,] { { result } };
                     }
-                    else
+                    else if (what == "constraint")
                     {
-                        return new string[,] { { "Error: add columns unsuccessful" } };
+                        throw new NotImplementedException();
                     }
                 }
-                else if (what == "constraint")
+                // <Alter Stm> ::= ALTER TABLE Id DROP COLUMN Id
+                // <Alter Stm> ::= ALTER TABLE Id DROP CONSTRAINT Id
+                else if (action == "drop")
                 {
-                    throw new NotImplementedException();
+                    if (what == "column")
+                    {
+                        string columnName = tokens[5];
+                        string result = tables[tableName].dropColumn(columnName);
+                        return new string[,] { { result } };
+                    }
+                    else if (what == "constraint")
+                    {
+                        throw new NotImplementedException();
+                    }
                 }
+
+                return new string[,] { { "Error" } }; ;
             }
-            // <Alter Stm> ::= ALTER TABLE Id DROP COLUMN Id
-            // <Alter Stm> ::= ALTER TABLE Id DROP CONSTRAINT Id
-            else if (action == "drop")
+            else
             {
-                if (what == "column")
-                {
-                    string columnName = tokens[5];
-                    bool success = tables[tableName].dropColumn(columnName);
-                    if (success)
-                    {
-                        return new string[,] { { "Drop successful" } };
-                    } else
-                    {
-                        return new string[,] { { "Error: drop unsuccessful" } };
-                    }
-                } else if (what == "constraint")
-                {
-                    throw new NotImplementedException();
-                }
+                return new string[,] { { "No such table in database" } };
             }
-
-            return new string[,] { { "Error" } }; ;
         }
     }
 }
