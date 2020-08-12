@@ -59,81 +59,28 @@ namespace DB338Core
 
         
         // less than optimal for now, but a binary expression tree for parsing boolean logic would be good.
+        // only handles the case of one comparison... i.e. column = something
         private bool processWhere(IntSchRow row, List<string> whereClause)
         {
-            string conditionOn = whereClause[0];
+            string conditionOnColumn = whereClause[0]; 
             string conditionOperator = whereClause[1];
-            object condition = whereClause[2]; // this will have a type...
-            object value = row.GetValueInColumn(conditionOn).Value; // this is the stored value in the database
-
-            TypeEnum type = columns[conditionOn].DataType;
-
-            switch (type)
-            {
-                case TypeEnum.String:
-                    // comparisonResult is ...
-                    // < 0 if value precedes condition
-                    // = 0 if value same as condition
-                    // > 0 if value after condition
-                    int comparisonResult = ((string)value).CompareTo((string)condition);
-                    switch (conditionOperator)
-                    {
-                        case ">": return comparisonResult < 0; // value > condition
-                        case ">=": return comparisonResult <= 0; // value >= condition
-                        case "<": return comparisonResult > 0; // value < condition
-                        case "<=": return comparisonResult >= 0; // value <= condition
-                        case "=": return comparisonResult == 0; // value == condition
-                        default: throw new Exception("Unsupported condition operator");
-                    }
-                case TypeEnum.Integer:
-                    int valueInt;
-                    int conditionInt;
-
-                    bool isValueInt = Int32.TryParse((string)value, out valueInt);
-                    bool isConditionInt = Int32.TryParse((string)condition, out conditionInt);
-
-                    if (isValueInt && isConditionInt)
-                    {
-                        switch (conditionOperator)
-                        {
-                            case ">": return valueInt > conditionInt; // value > condition
-                            case ">=": return valueInt >= conditionInt; // value >= condition
-                            case "<": return valueInt < conditionInt; // value < condition
-                            case "<=": return valueInt <= conditionInt; // value <= condition
-                            case "=": return valueInt == conditionInt; // value == condition
-                            default: throw new Exception("Unsupported condition operator");
-                        }
-                    } else
-                    {
-                        throw new Exception("Condition or value wasn't a valid integer");
-                    }
-                case TypeEnum.Float:
-                    float valueFloat;
-                    float conditionFloat;
-
-                    bool isValueFloat = Single.TryParse((string)value, out valueFloat);
-                    bool isConditionFloat = Single.TryParse((string)condition, out conditionFloat);
-
-                    if (isValueFloat && isConditionFloat)
-                    {
-                        switch (conditionOperator)
-                        {
-                            case ">": return valueFloat > conditionFloat; // value > condition
-                            case ">=": return valueFloat>= conditionFloat; // value >= condition
-                            case "<": return valueFloat < conditionFloat; // value < condition
-                            case "<=": return valueFloat <= conditionFloat; // value <= condition
-                            case "=": return valueFloat == conditionFloat; // value == condition
-                            default: throw new Exception("Unsupported condition operator");
-                        }
-                    }
-                    else
-                    {
-                        throw new Exception("Condition or value wasn't a valid integer");
-                    }
-                default:
-                    return true;
-            }
+            object givenConditionObj = whereClause[2];
             
+            IntSchValue storedValue = row.GetValueInColumn(conditionOnColumn); 
+            // make a IntSchValue object out of the user given condition that can be used for comparison to the stored value
+            IntSchValue givenCondition = new IntSchValue(givenConditionObj, columns[conditionOnColumn].DataType);
+
+            int comparisonResult = storedValue.CompareTo(givenCondition);
+
+            switch (conditionOperator)
+            {
+                case ">": return comparisonResult < 0; // value > condition
+                case ">=": return comparisonResult <= 0; // value >= condition
+                case "<": return comparisonResult > 0; // value < condition
+                case "<=": return comparisonResult >= 0; // value <= condition
+                case "=": return comparisonResult == 0; // value == condition
+                default: throw new Exception("Unsupported condition operator");
+            }
         }
 
         public bool Project()
@@ -268,12 +215,11 @@ namespace DB338Core
             return Select(null);
         }
 
-        internal List<IntSchRow> OrderBy(List<IntSchRow> rows, string colToOrderOn)
+        internal List<IntSchRow> OrderBy(List<IntSchRow> rows, string colToOrderOn, bool ascending)
         {
-            // return rows.Sort(delegate(Dictionary<string, object> x, Dictionary<string, object> x {}));
-
-            // This won't work great because typing is not considered correctly... 
-            return rows.OrderBy(row => row.GetValueInColumn(colToOrderOn)).ToList();
+            // not List<>.Sort because that modifies the table in place
+            if (ascending) return rows.OrderBy(row => row.GetValueInColumn(colToOrderOn)).ToList();
+            else return rows.OrderByDescending(row => row.GetValueInColumn(colToOrderOn)).ToList();
         }
     }
 }

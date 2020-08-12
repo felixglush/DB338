@@ -238,8 +238,6 @@ namespace DB338Core
             }
 
             List<string> colsToSelect = new List<string>();
-
-            int indexOfFrom = tokens.IndexOf("from");
             int tableOffset = 0;
 
             for (int i = 1; i < tokens.Count; ++i)
@@ -302,7 +300,14 @@ namespace DB338Core
                 {
                     // process order by clause
                     string colToOrderOn = tokens[indexOrderby + 2];
-                    result = tables[tableToSelectFrom].OrderBy(result, colToOrderOn);
+                    bool ascending = true;
+                    if (indexOrderby + 3 < tokens.Count && tokens[indexOrderby + 3] == "desc")
+                    {
+                        ascending = false;
+                    }
+                    
+                    result = tables[tableToSelectFrom].OrderBy(result, colToOrderOn, ascending);
+
                 }
 
                 if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
