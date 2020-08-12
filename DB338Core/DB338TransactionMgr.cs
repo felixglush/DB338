@@ -69,7 +69,7 @@ namespace DB338Core
             return results;
         }
 
-        private static string[,] ConvertToArray(List<Dictionary<string, object>> rows, List<string> columnNames)
+        private static string[,] ConvertToArray(List<IntSchRow> rows, List<string> columnNames)
         {
             string[,] returnResult = new string[rows.Count, columnNames.Count];
 
@@ -79,7 +79,14 @@ namespace DB338Core
                 // for each column
                 for (int j = 0; j < columnNames.Count; ++j)
                 {
-                    returnResult[i, j] = (string)rows[i][columnNames[j]];
+                    string str = rows[i].GetValueInColumn(columnNames[j]).Value as string;
+                    if (str != null)
+                    {
+                        returnResult[i, j] = str;
+                    } else
+                    {
+                        throw new InvalidCastException("Value not convertible to string");
+                    }
                 }
             }
 
@@ -275,7 +282,7 @@ namespace DB338Core
             if (tables.ContainsKey(tableToSelectFrom))
             {
                 // list of rows is returned. each row is a mapping between the column name and its value in that row.
-                List<Dictionary<string, object>> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
+                List<IntSchRow> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
                 if (indexGroupby != -1)
                 {
@@ -315,7 +322,14 @@ namespace DB338Core
                     {
                         if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[j]))
                         {
-                            returnResult[i, j] = (string)result[i][colsToSelect[j]];
+                            string str = result[i].GetValueInColumn(colsToSelect[j]).Value as string;
+                            if (str != null)
+                            {
+                                returnResult[i, j] = str
+                            } else
+                            {
+                                throw new InvalidCastException("Result not convertible to string");
+                            }
                         } else
                         {
                             return new string[,] { { "No such column " + colsToSelect[j] + " in the table " + tableToSelectFrom } };
@@ -369,12 +383,8 @@ namespace DB338Core
                 }
             }
 
-            // list of rows is returned. each row is a mapping between the column name and its value in that row.
-            List<Dictionary<string, object>> result = tables[tableName].Update(newColValues, whereClause);
-            List<string> columnNames = tables[tableName].getColumnNames();
-            string[,] returnResult = ConvertToArray(result, columnNames);
-
-            return returnResult;
+            string[,] result = tables[tableName].Update(newColValues, whereClause);
+            return result;
         }
        
         private string[,] ProcessDropStatement(List<string> tokens)
@@ -489,7 +499,7 @@ namespace DB338Core
                             i += 1;
                         }
 
-                        string result = tables[tableName].addColumns(columns);
+                        string result = tables[tableName].AddColumns(columns);
                         return new string[,] { { result } };
                     }
                     else if (what == "constraint")

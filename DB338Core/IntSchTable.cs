@@ -10,11 +10,6 @@ namespace DB338Core
 {
     class IntSchTable
     {
-        // tradeoff between O(1) row access and O(1) column access...
-
-
-        private string name;
-        int numRows;
         private IDictionary<string, IntSchColumn> columns;
 
         // list of records, each record is a map between column name and the value. this makes filtering out entire rows easier.
@@ -25,14 +20,13 @@ namespace DB338Core
 
         public IntSchTable(string initname)
         {
-            name = initname;
-            numRows = 0;
+            Name = initname;
             columns = new Dictionary<string, IntSchColumn>();
-            rows = new List<Dictionary<string, object>>();
+            rows = new List<IntSchRow>();
         }
 
-        public string Name { get => name; set => name = value; }
-        
+        public string Name { get; set; }
+
         private void printList(List<string> list, string type)
         {
             if (LOG == 1) {
@@ -51,12 +45,12 @@ namespace DB338Core
             return columns.Keys.ToList();
         }
 
-        public List<Dictionary<string, object>> Select(List<string> whereClause)
+        public List<IntSchRow> Select(List<string> whereClause)
         {
             if (whereClause != null && whereClause.Count > 0)
             {
                 printList(whereClause, "WHERE CLAUSE");
-                List<Dictionary<string, object>> filteredRows = rows.Where(row => processWhere(row, whereClause)).ToList();
+                List<IntSchRow> filteredRows = rows.Where(row => processWhere(row, whereClause)).ToList();
                 return filteredRows;
             }
 
@@ -65,14 +59,14 @@ namespace DB338Core
 
         
         // less than optimal for now, but a binary expression tree for parsing boolean logic would be good.
-        private bool processWhere(Dictionary<string, object> row, List<string> whereClause)
+        private bool processWhere(IntSchRow row, List<string> whereClause)
         {
             string conditionOn = whereClause[0];
             string conditionOperator = whereClause[1];
             object condition = whereClause[2]; // this will have a type...
-            object value = row[conditionOn]; // this is the stored value in the database
+            object value = row.GetValueInColumn(conditionOn).Value; // this is the stored value in the database
 
-            TypeEnum type = columns[conditionOn].getType();
+            TypeEnum type = columns[conditionOn].DataType;
 
             switch (type)
             {
@@ -155,13 +149,15 @@ namespace DB338Core
 
             if (columnNames.Count == columnValues.Count)
             {
-                Dictionary<string, object> row = new Dictionary<string, object>();
+                IntSchRow row = new IntSchRow();
                 
                 for (int i = 0; i < columnNames.Count; ++i)
                 {
-                    columns[columnNames[i]].items.Add(columnValues[i]);
-                    row[columnNames[i]] = columnValues[i];
-                    numRows += 1;
+                    TypeEnum columnType = columns[columnNames[i]].DataType;
+                    IntSchValue val = new IntSchValue(columnValues[i], columnType);
+
+                    columns[columnNames[i]].AddValueToColumn(val);
+                    row.SetValueInColumn(columnNames[i], val);
                 }
 
                 rows.Add(row);
@@ -174,16 +170,21 @@ namespace DB338Core
 
             if (LOG == 1) System.Console.WriteLine("ADD COLUMN " + name + " " + type);
 
-            columns.Add(name, new IntSchColumn(name, type));
-            
-            // for each row, add the column with a null value
-            for (int i = 0;  i < rows.Count; ++i) rows[i][name] = null;
+            // make a rows.Count quantity of new IntSchValues and add them to the column and each row
+            IntSchColumn newCol = new IntSchColumn(name, type);
+            for (int i = 0; i < rows.Count; ++i)
+            {
+                IntSchValue val = new IntSchValue(null, type);
+                rows[i].SetValueInColumn(name, val);
+                newCol.AddValueToColumn(val);
+            }
+            columns.Add(name, newCol);
 
             return "";
         }
 
         // Dictionary maps column names to types
-        internal string addColumns(IDictionary<string, TypeEnum> cols)
+        internal string AddColumns(IDictionary<string, TypeEnum> cols)
         {
             foreach (KeyValuePair<string, TypeEnum> entry in cols)
             {
@@ -201,7 +202,7 @@ namespace DB338Core
                 bool success = columns.Remove(columnName);
                 if (success)
                 {
-                    for (int i = 0; i < rows.Count; ++i) rows[i].Remove(columnName);
+                    for (int i = 0; i < rows.Count; ++i) rows[i].RemoveColumn(columnName);
                     return "Successfully removed column.";
                 } else
                 {
@@ -213,33 +214,45 @@ namespace DB338Core
             }
         }
 
-        public List<Dictionary<string, object>> Update(Dictionary<string, string> newColValues, List<string> whereClause)
+        public string[,] Update(Dictionary<string, string> newColValues, List<string> whereClause)
         {
             for (int i = 0; i < rows.Count; ++i)
             {
+                bool result = false;
                 if (whereClause != null && processWhere(rows[i], whereClause))
                 {
-                    updateRows(newColValues, i);
+                    result = updateRows(newColValues, i);
                 }
                 else if (whereClause == null)
                 {
-                    updateRows(newColValues, i);
+                    result = updateRows(newColValues, i); // every single row i gets passed in here
+                }
+
+                if (!result)
+                {
+                    return new string[,] { { "Rows couldn't be updated. Given column type likely doesn't match the column's stored type." } };
                 }
             }
                 
-            return Select(null);
+            return new string[,] { { "Rows updated succesfully" } };
         }
 
-        private void updateRows(Dictionary<string, string> newColValues, int i)
+        private bool updateRows(Dictionary<string, string> newColValues, int rowIndex)
         {
             foreach (KeyValuePair<string, string> columnValue in newColValues)
             {
-                columns[columnValue.Key].setItemValue(columnValue.Value, i);
-                rows[i][columnValue.Key] = columnValue.Value; // also update row representation... 
+                // get the IntSchValue by rowIndex and update it with newColValues.
+                bool result = rows[rowIndex].UpdateValueInColumm(columnValue.Key, columnValue.Value);
+                if (!result)
+                {
+                    return result;
+                }
             }
+            return true;
         }
 
-        public List<Dictionary<string, object>> DeleteRows(List<string> whereClause)
+        // fix
+        public List<IntSchRow> DeleteRows(List<string> whereClause)
         {
             if (whereClause != null)
             {
@@ -255,12 +268,12 @@ namespace DB338Core
             return Select(null);
         }
 
-        internal List<Dictionary<string, object>> OrderBy(List<Dictionary<string, object>> rows, string colToOrderOn)
+        internal List<IntSchRow> OrderBy(List<IntSchRow> rows, string colToOrderOn)
         {
             // return rows.Sort(delegate(Dictionary<string, object> x, Dictionary<string, object> x {}));
 
             // This won't work great because typing is not considered correctly... 
-            return rows.OrderBy(row => row[colToOrderOn]).ToList();
+            return rows.OrderBy(row => row.GetValueInColumn(colToOrderOn)).ToList();
         }
     }
 }

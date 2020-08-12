@@ -7,51 +7,28 @@ namespace DB338Core
 {
     class IntSchColumn
     {
-        public List<string> items;
+        private List<IntSchValue> items;
         private TypeEnum dataType;
         private string name;
 
         public IntSchColumn(string newname, TypeEnum type)
         {
             name = newname;
-            dataType = type;
-            items = new List<string>();
-        }
-        public string Get(int pos)
-        {
-            return items[pos];
+            DataType = type;
+            items = new List<IntSchValue>();
         }
 
-        public void setItemValue(string value, int index)
+        public void AddValueToColumn(IntSchValue value)
         {
-            bool possible = false; // possible if the given type is casteable to the column's data type
-            switch (dataType)
-            {
-                case TypeEnum.Integer:
-                    int resultInt;
-                    possible = Int32.TryParse(value, out resultInt);
-                    break;
-                case TypeEnum.Float:
-                    float resultFloat;
-                    possible = Single.TryParse(value, out resultFloat);
-                    break;
-                default:
-                    break;
-            }
-
-            if (!possible)
-            {
-                throw new Exception("Value type is not the correct for this column. Column: " + name + " has type " + dataType);
-            }
-
-            items[index] = value;
+            items.Add(value);
         }
 
-        public TypeEnum getType()
+        public void RemoveValueFromColumn(int index)
         {
-            return dataType;
+            items.RemoveAt(index);
         }
 
         public string Name { get => name; set => name = value; }
+        internal TypeEnum DataType { get => dataType; set => dataType = value; }
     }
 }
