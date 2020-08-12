@@ -20,9 +20,14 @@ namespace DB338Core
         }
 
         // this updates an existing IntSchValue in the column
-        internal void UpdateValueInColumm(string columnName, object newValue)
+        internal bool UpdateValueInColumm(string columnName, object newValue)
         {
-            items[columnName].Value = newValue; 
+            if (items[columnName].Value != null)
+            {
+                items[columnName].Value = newValue;
+                return true;
+            }
+            return false;
         }
 
         internal IntSchValue GetValueInColumn(string columnName)

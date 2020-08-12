@@ -1,5 +1,4 @@
 ﻿using EduDBCore;
-using GOLD;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -325,7 +324,7 @@ namespace DB338Core
                             string str = result[i].GetValueInColumn(colsToSelect[j]).Value as string;
                             if (str != null)
                             {
-                                returnResult[i, j] = str
+                                returnResult[i, j] = str;
                             } else
                             {
                                 throw new InvalidCastException("Result not convertible to string");
@@ -410,7 +409,7 @@ namespace DB338Core
             if (tables.ContainsKey(tableName))
             {
                 List<string> columnNames = tables[tableName].getColumnNames();
-                List<Dictionary<string, object>> result;
+                List<IntSchRow> result;
 
                 int indexWhere = tokens.IndexOf("where");
 
