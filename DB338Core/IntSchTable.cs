@@ -221,5 +221,18 @@ namespace DB338Core
             if (ascending) return rows.OrderBy(row => row.GetValueInColumn(colToOrderOn)).ToList();
             else return rows.OrderByDescending(row => row.GetValueInColumn(colToOrderOn)).ToList();
         }
+
+        internal List<IntSchRow> GroupBy(List<IntSchRow> rows, string colToGroupOn, List<KeyValuePair<string, string>> aggregations)
+        {
+            List<IntSchRow> reuslt = new List<IntSchRow>();
+
+            IEnumerable<IGrouping<IntSchValue, IntSchRow>> result = rows.GroupBy(row => row.GetValueInColumn(colToGroupOn));
+            
+            foreach (IGrouping<IntSchValue, IntSchRow> group in result)
+            {
+                
+            }
+            return reuslt;
+        }
     }
 }

@@ -16,6 +16,7 @@ namespace DB338Core
         //it is implemented using Lists, which could be replaced.
         // replaced with a dictionary of table name to IntSchTable
         IDictionary<string, IntSchTable> tables;
+        string[] aggregateFunctions = new string[] { "count" };
 
         public DB338TransactionMgr()
         {
@@ -25,8 +26,8 @@ namespace DB338Core
         public string[,] Process(List<string> tokens, string type)
         {
             Console.WriteLine("Tokens:");
-            foreach(string t in tokens)
-            {    
+            foreach (string t in tokens)
+            {
                 Console.WriteLine(t);
             }
 
@@ -82,7 +83,8 @@ namespace DB338Core
                     if (str != null)
                     {
                         returnResult[i, j] = str;
-                    } else
+                    }
+                    else
                     {
                         throw new InvalidCastException("Value not convertible to string");
                     }
@@ -103,7 +105,7 @@ namespace DB338Core
             if (tables.ContainsKey(newTableName))
             {
                 //cannot create a new table with the same name
-                return new string[,] { { "Table " + newTableName +  " already exists"} };
+                return new string[,] { { "Table " + newTableName + " already exists" } };
             }
 
             List<string> columnNames = new List<string>();
@@ -161,7 +163,7 @@ namespace DB338Core
 
             tables.Add(newTableName, newTable);
 
-            return new string[,] { { "Succesfully created table "  + newTableName } };
+            return new string[,] { { "Succesfully created table " + newTableName } };
         }
 
         // insert into test(col1, col2, col3) values(100, 200, 300)
@@ -238,22 +240,34 @@ namespace DB338Core
             }
 
             List<string> colsToSelect = new List<string>();
-            int tableOffset = 0;
+            List<KeyValuePair<string, string>> aggregations = new List<KeyValuePair<string, string>>;
+
+            int tableOffset = tokens.IndexOf("from");
+            string tableToSelectFrom = tokens[tableOffset + 1];
+
+            if (!tables.ContainsKey(tableToSelectFrom))
+            {
+                return new string[,] { { "No such table in the database" } };
+            }
 
             for (int i = 1; i < tokens.Count; ++i)
             {
-                if (tokens[i] == "from")
+                if (i == tableOffset)
                 {
-                    tableOffset = i + 1;
                     break;
                 }
                 else if (tokens[i] == ",")
                 {
                     continue;
                 }
-                else
+                else if (aggregateFunctions.Contains(tokens[i])) 
                 {
-                    colsToSelect.Add(tokens[i]); // TODO: aggregate function detection...
+                    string colToAggregate = tokens[i + 2]; // i.e. count(col)
+                    aggregations.Add(new KeyValuePair<string, string>(colToAggregate, tokens[i]));
+                }
+                else if (tokens[i] != "(" && tokens[i] != ")")
+                {
+                    colsToSelect.Add(tokens[i]);
                 }
             }
 
@@ -274,79 +288,75 @@ namespace DB338Core
                 }
             }
 
-            string tableToSelectFrom = tokens[tableOffset];
+            // list of rows is returned. each row is a mapping between the column name and its value in that row.
+            List<IntSchRow> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
-            if (tables.ContainsKey(tableToSelectFrom))
+            if (indexGroupby != -1)
             {
-                // list of rows is returned. each row is a mapping between the column name and its value in that row.
-                List<IntSchRow> result = tables[tableToSelectFrom].Select(whereClause); // Select will check if where is empty or not
 
-                if (indexGroupby != -1)
+                // process group by clause
+                if (indexHaving != -1)
                 {
-
-                    // process group by clause
-                    if (indexHaving != -1)
-                    {
-                        // process having clause 
-                        // not implemented yet
-                    }
-
-                    string colToGroupOn = tokens[indexGroupby + 2];
-                    //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
-
+                    // process having clause 
+                    // not implemented 
                 }
 
-                if (indexOrderby != -1)
-                {
-                    // process order by clause
-                    string colToOrderOn = tokens[indexOrderby + 2];
-                    bool ascending = true;
-                    if (indexOrderby + 3 < tokens.Count && tokens[indexOrderby + 3] == "desc")
-                    {
-                        ascending = false;
-                    }
-                    
-                    result = tables[tableToSelectFrom].OrderBy(result, colToOrderOn, ascending);
+                string colToGroupOn = tokens[indexGroupby + 2];
+                //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
+                result = tables[tableToSelectFrom].GroupBy(result, colToGroupOn, aggregations);
 
+            }
+
+            if (indexOrderby != -1)
+            {
+                // process order by clause
+                string colToOrderOn = tokens[indexOrderby + 2];
+                bool ascending = true;
+                if (indexOrderby + 3 < tokens.Count && tokens[indexOrderby + 3] == "desc")
+                {
+                    ascending = false;
                 }
 
-                if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
-                {
-                    colsToSelect.RemoveAt(0);
-                    colsToSelect = tables[tableToSelectFrom].getColumnNames();
-                }
+                result = tables[tableToSelectFrom].OrderBy(result, colToOrderOn, ascending);
 
-                string[,] returnResult = new string[result.Count, colsToSelect.Count];
-                
-                // for each row
-                for (int i = 0; i < result.Count; ++i)
+            }
+
+            if (colsToSelect.Count == 1 && colsToSelect[0] == "*")
+            {
+                colsToSelect.RemoveAt(0);
+                colsToSelect = tables[tableToSelectFrom].getColumnNames();
+            }
+
+            string[,] returnResult = new string[result.Count, colsToSelect.Count];
+
+            // for each row
+            for (int i = 0; i < result.Count; ++i)
+            {
+                // for each column
+                for (int j = 0; j < colsToSelect.Count; ++j)
                 {
-                    // for each column
-                    for (int j = 0; j < colsToSelect.Count; ++j)
+                    if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[j]))
                     {
-                        if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[j]))
+                        string str = result[i].GetValueInColumn(colsToSelect[j]).Value as string;
+                        if (str != null)
                         {
-                            string str = result[i].GetValueInColumn(colsToSelect[j]).Value as string;
-                            if (str != null)
-                            {
-                                returnResult[i, j] = str;
-                            } else
-                            {
-                                throw new InvalidCastException("Result not convertible to string");
-                            }
-                        } else
+                            returnResult[i, j] = str;
+                        }
+                        else
                         {
-                            return new string[,] { { "No such column " + colsToSelect[j] + " in the table " + tableToSelectFrom } };
+                            throw new InvalidCastException("Result not convertible to string");
                         }
                     }
+                    else
+                    {
+                        return new string[,] { { "No such column " + colsToSelect[j] + " in the table " + tableToSelectFrom } };
+                    }
                 }
-
-                return returnResult;
             }
-            else
-            {
-                return new string[,] { { "No such table in the database" } };
-            }   
+
+            return returnResult;
+
+
         }
 
         private string[,] ProcessUpdateStatement(List<string> tokens)
@@ -390,7 +400,7 @@ namespace DB338Core
             string[,] result = tables[tableName].Update(newColValues, whereClause);
             return result;
         }
-       
+
         private string[,] ProcessDropStatement(List<string> tokens)
         {
             // <Drop Stm> ::= DROP TABLE Id
@@ -400,7 +410,8 @@ namespace DB338Core
             if (success)
             {
                 return new string[,] { { "Success: Table " + tableName + " removed." } };
-            } else
+            }
+            else
             {
                 return new string[,] { { "Fail: No such table found." } };
             }
@@ -434,7 +445,8 @@ namespace DB338Core
                     result = tables[tableName].DeleteRows(whereClause);
                     return ConvertToArray(result, columnNames);
                 }
-            } else
+            }
+            else
             {
                 return new string[,] { { "No such table in the database" } };
             }
