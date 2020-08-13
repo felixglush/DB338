@@ -58,7 +58,7 @@ namespace DB338Core
         }
 
         
-        // less than optimal for now, but a binary expression tree for parsing boolean logic would be good.
+        // this for now, but a expression tree for parsing boolean logic would probably be the way to do this.
         // only handles the case of one comparison... i.e. column = something
         private bool processWhere(IntSchRow row, List<string> whereClause)
         {
@@ -222,17 +222,139 @@ namespace DB338Core
             else return rows.OrderByDescending(row => row.GetValueInColumn(colToOrderOn)).ToList();
         }
 
+        // aggregations: pairs of column, function
         internal List<IntSchRow> GroupBy(List<IntSchRow> rows, string colToGroupOn, List<KeyValuePair<string, string>> aggregations)
         {
-            List<IntSchRow> reuslt = new List<IntSchRow>();
+            List<IntSchRow> rowResult = new List<IntSchRow>();
+            IntSchValueEqualityByValue comparer = new IntSchValueEqualityByValue();
 
-            IEnumerable<IGrouping<IntSchValue, IntSchRow>> result = rows.GroupBy(row => row.GetValueInColumn(colToGroupOn));
+            var query = rows.GroupBy(
+                row => row.GetValueInColumn(colToGroupOn), 
+                (groupValue, groupRows) =>
+                {
+                    Console.WriteLine("Group value " + groupValue.ToString());
+
+                    List<KeyValuePair<string, object>> aggregationResults = new List<KeyValuePair<string, object>>();
+
+                    foreach (KeyValuePair<string, string> entry in aggregations)
+                    {
+                        string columnName = entry.Key;
+                        string function = entry.Value;
+
+                        switch (function)
+                        {
+                            case "count":
+                                int count = groupRows.Count();
+                                aggregationResults.Add(new KeyValuePair<string, object>("count(" + columnName + ")", count));
+                                break;    
+                            case "max":
+                                float max = groupRows.Max(row =>
+                                {
+                                    IntSchValue intSchValue = row.GetValueInColumn(columnName);
+                                    switch (intSchValue.Type)
+                                    {
+                                        case TypeEnum.Integer:
+                                            return (int)Convert.ChangeType(intSchValue.Value, typeof(int));
+                                        case TypeEnum.Float:
+                                            return (float)Convert.ChangeType(intSchValue.Value, typeof(float));
+                                        default:
+                                            break;
+                                    }
+                                    return 0;
+                                });
+
+                                aggregationResults.Add(new KeyValuePair<string, object>("max(" + columnName + ")", max));
+
+                                break;
+                            case "min":
+                                float min = groupRows.Min(row =>
+                                {
+                                    IntSchValue intSchValue = row.GetValueInColumn(columnName);
+                                    switch (intSchValue.Type)
+                                    {
+                                        case TypeEnum.Integer:
+                                            return (int)Convert.ChangeType(intSchValue.Value, typeof(int));
+                                        case TypeEnum.Float:
+                                            return (float)Convert.ChangeType(intSchValue.Value, typeof(float));
+                                        default:
+                                            break;
+                                    }
+                                    return 0;
+                                });
+
+                                aggregationResults.Add(new KeyValuePair<string, object>("min(" + columnName + ")", min));
+
+                                break;
+                            case "avg":
+                                float avg = groupRows.Average(row =>
+                                {
+                                    IntSchValue intSchValue = row.GetValueInColumn(columnName);
+                                    switch (intSchValue.Type)
+                                    {
+                                        case TypeEnum.Integer:
+                                            return (int)Convert.ChangeType(intSchValue.Value, typeof(int));
+                                        case TypeEnum.Float:
+                                            return (float)Convert.ChangeType(intSchValue.Value, typeof(float));
+                                        default:
+                                            break;
+                                    }
+                                    return 0;
+                                });
+
+                                aggregationResults.Add(new KeyValuePair<string, object>("avg(" + columnName + ")", avg));
+
+                                break;
+                            case "sum":
+                                float sum = groupRows.Sum(row =>
+                                {
+                                    IntSchValue intSchValue = row.GetValueInColumn(columnName);
+                                    switch (intSchValue.Type)
+                                    {
+                                        case TypeEnum.Integer:
+                                            return (int)Convert.ChangeType(intSchValue.Value, typeof(int));
+                                        case TypeEnum.Float:
+                                            return (float)Convert.ChangeType(intSchValue.Value, typeof(float));
+                                        default:
+                                            break;
+                                    }
+                                    return 0;
+                                });
+
+                                aggregationResults.Add(new KeyValuePair<string, object>("sum(" + columnName + ")", sum));
+
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+
+                    return new
+                    {
+                        Key = groupValue,
+                        Aggregations = aggregationResults
+                    };
+                },
+                comparer
+            );
             
-            foreach (IGrouping<IntSchValue, IntSchRow> group in result)
+            foreach (var result in query)
             {
-                
+                IntSchRow row = new IntSchRow();
+                row.SetValueInColumn(colToGroupOn, result.Key);
+                foreach (KeyValuePair<string, object> aggregation in result.Aggregations)
+                {
+                    string columnName = aggregation.Key;
+                    row.SetValueInColumn(columnName, new IntSchValue(aggregation.Value, TypeEnum.Integer));
+                }
+                rowResult.Add(row);
             }
-            return reuslt;
+
+            foreach(IntSchRow r in rowResult)
+            {
+                Console.WriteLine(r);                
+            }
+
+            return rowResult;
         }
     }
 }

@@ -54,6 +54,7 @@
     <Compile Include="DB338.cs" />
     <Compile Include="IntSchRow.cs" />
     <Compile Include="IntSchValue.cs" />
+    <Compile Include="IntSchValueEqualityByValue.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="QueryResult.cs" />
     <Compile Include="SQLParser.cs" />

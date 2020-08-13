@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Remoting.Messaging;
@@ -26,26 +27,6 @@ namespace EduDBCore
             }
             set
             {
-                /**
-                bool possible = false; // possible if the given type is casteable to the column's data type
-                switch (this.Type)
-                {
-                    case TypeEnum.Integer:
-                        int resultInt;
-                        possible = Int32.TryParse((string)value, out resultInt);
-                        break;
-                    case TypeEnum.Float:
-                        float resultFloat;
-                        possible = Single.TryParse((string)value, out resultFloat);
-                        break;
-                    case TypeEnum.String:
-                        var str = value as string;
-                        if (str != null) possible = true;
-                        break;
-                    default:
-                        return false;
-                }
-                */
                 this._value = value;
             }
         }
@@ -93,13 +74,20 @@ namespace EduDBCore
                         }
                         break;
                     case TypeEnum.String:
-                        return String.Compare((string)Value, (string)thatVal.Value);
+                        return String.Compare((string)_value, (string)thatVal.Value);
                     default:
                         return 0;
                 }
             }
 
             return 0;
+        }
+
+
+
+        public override string ToString()
+        {
+            return _value.ToString();
         }
     }
 }

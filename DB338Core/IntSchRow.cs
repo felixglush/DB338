@@ -1,6 +1,7 @@
 ﻿using EduDBCore;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace DB338Core
 { 
@@ -39,6 +40,22 @@ namespace DB338Core
         {
             return items.Remove(columnName);
         }
-  
+
+        public override string ToString()
+        {
+            string result = "";
+
+            foreach(KeyValuePair<string, IntSchValue> entry in items)
+            {
+                result += entry.Value.ToString();
+            }
+
+            return result;
+        }
+
+        public List<string> GetColumnNames()
+        {
+            return items.Keys.ToList();
+        }
     }
 }

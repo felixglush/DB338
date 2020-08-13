@@ -16,7 +16,7 @@ namespace DB338Core
         //it is implemented using Lists, which could be replaced.
         // replaced with a dictionary of table name to IntSchTable
         IDictionary<string, IntSchTable> tables;
-        string[] aggregateFunctions = new string[] { "count" };
+        private string[] aggregateFunctions = new string[] { "count", "max", "min", "avg", "sum" };
 
         public DB338TransactionMgr()
         {
@@ -240,7 +240,7 @@ namespace DB338Core
             }
 
             List<string> colsToSelect = new List<string>();
-            List<KeyValuePair<string, string>> aggregations = new List<KeyValuePair<string, string>>;
+            List<KeyValuePair<string, string>> aggregations = new List<KeyValuePair<string, string>>();
 
             int tableOffset = tokens.IndexOf("from");
             string tableToSelectFrom = tokens[tableOffset + 1];
@@ -260,10 +260,11 @@ namespace DB338Core
                 {
                     continue;
                 }
-                else if (aggregateFunctions.Contains(tokens[i])) 
+                else if (aggregateFunctions.Contains(tokens[i]))
                 {
                     string colToAggregate = tokens[i + 2]; // i.e. count(col)
                     aggregations.Add(new KeyValuePair<string, string>(colToAggregate, tokens[i]));
+                    colsToSelect.Add(tokens[i] + tokens[i + 1] + tokens[i + 2] + tokens[i + 3]);
                 }
                 else if (tokens[i] != "(" && tokens[i] != ")")
                 {
@@ -293,18 +294,16 @@ namespace DB338Core
 
             if (indexGroupby != -1)
             {
-
                 // process group by clause
+                string colToGroupOn = tokens[indexGroupby + 2];
+
+                // Note: this is a new List<IntSchRow> object
+                result = tables[tableToSelectFrom].GroupBy(result, colToGroupOn, aggregations);
                 if (indexHaving != -1)
                 {
                     // process having clause 
                     // not implemented 
                 }
-
-                string colToGroupOn = tokens[indexGroupby + 2];
-                //IEnumerable<IGrouping<object, Dictionary<string, object>>> query = result.GroupBy(record => record[colToGroupOn]);
-                result = tables[tableToSelectFrom].GroupBy(result, colToGroupOn, aggregations);
-
             }
 
             if (indexOrderby != -1)
@@ -327,36 +326,50 @@ namespace DB338Core
                 colsToSelect = tables[tableToSelectFrom].getColumnNames();
             }
 
-            string[,] returnResult = new string[result.Count, colsToSelect.Count];
-
-            // for each row
-            for (int i = 0; i < result.Count; ++i)
+            string[,] returnResult;
+            if (indexGroupby == -1)
             {
-                // for each column
-                for (int j = 0; j < colsToSelect.Count; ++j)
+                returnResult = new string[result.Count, colsToSelect.Count];
+                // for each row
+                for (int rowIdx = 0; rowIdx < result.Count; ++rowIdx)
                 {
-                    if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[j]))
+                    // for each column
+                    for (int colIdx = 0; colIdx < colsToSelect.Count; ++colIdx)
                     {
-                        string str = result[i].GetValueInColumn(colsToSelect[j]).Value as string;
-                        if (str != null)
+                        if (tables[tableToSelectFrom].ContainsColumn(colsToSelect[colIdx]))
                         {
-                            returnResult[i, j] = str;
+                            converToStringForOutput(colsToSelect, result, returnResult, rowIdx, colIdx);
                         }
                         else
                         {
-                            throw new InvalidCastException("Result not convertible to string");
+                            return new string[,] { { "No such column " + colsToSelect[colIdx] + " in the table " + tableToSelectFrom } };
                         }
                     }
-                    else
+                }
+            }
+            else // groupby returns a new List<IntSchRow> with new columns
+            {
+                colsToSelect = result[0].GetColumnNames();
+                returnResult = new string[result.Count, colsToSelect.Count];
+
+                // for each row
+                for (int rowIdx = 0; rowIdx < result.Count; ++rowIdx)
+                {
+                    // for each column
+                    for (int colIdx = 0; colIdx < colsToSelect.Count; ++colIdx)
                     {
-                        return new string[,] { { "No such column " + colsToSelect[j] + " in the table " + tableToSelectFrom } };
+                        converToStringForOutput(colsToSelect, result, returnResult, rowIdx, colIdx);
                     }
                 }
             }
 
             return returnResult;
+        }
 
-
+        private static void converToStringForOutput(List<string> colsToSelect, List<IntSchRow> result, string[,] returnResult, int rowIdx, int colIdx)
+        {
+            string value = result[rowIdx].GetValueInColumn(colsToSelect[colIdx]).ToString();
+            returnResult[rowIdx, colIdx] = value;
         }
 
         private string[,] ProcessUpdateStatement(List<string> tokens)
